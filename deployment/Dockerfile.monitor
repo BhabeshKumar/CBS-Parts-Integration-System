@@ -1,0 +1,29 @@
+# CBS System Monitor - Production Container
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    docker.io \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip install --no-cache-dir requests
+
+# Copy monitoring script
+COPY deployment/system_monitor.py ./
+
+# Create logs directory
+RUN mkdir -p logs
+
+# Create non-root user
+RUN useradd -r -u 1001 cbsuser && \
+    chown -R cbsuser:cbsuser /app
+
+USER cbsuser
+
+# Start the monitoring system
+CMD ["python", "system_monitor.py"]

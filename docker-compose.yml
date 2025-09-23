@@ -1,0 +1,50 @@
+services:
+  cbs-parts-system:
+    build: .
+    container_name: cbs-parts-system
+    ports:
+      - "80:80"
+      - "443:443"
+      - "5173:5173"
+      - "8000:8000"
+      - "8002:8002"
+      - "8003:8003"
+    environment:
+      - SMARTSHEET_API_TOKEN=${SMARTSHEET_API_TOKEN:-7R7hgaXfL3J2pBrk757P73G4umegsLkWgRSgB}
+      - ORDERS_INTAKE_SHEET_ID=${ORDERS_INTAKE_SHEET_ID:-p3G494hxj7PMRR54xFH4vFV4gf2g94vqM4V9Q7H1}
+      - SALES_WORKS_ORDERS_SHEET_ID=${SALES_WORKS_ORDERS_SHEET_ID:-G7Wm6pV3rQ6p8PpJg4WQ8R2MP29PPW25WrpjQ391}
+      - CBS_PARTS_SHEET_ID=${CBS_PARTS_SHEET_ID:-4695255724019588}
+      - CBS_DISCOUNTS_SHEET_ID=${CBS_DISCOUNTS_SHEET_ID:-8920011042148228}
+      - CBS_DIRECTOR_EMAIL=${CBS_DIRECTOR_EMAIL:-bhabesh.kumar@sheaney.ie}
+      - ENVIRONMENT=production
+    volumes:
+      - cbs_logs:/app/logs
+      - cbs_temp:/app/temp_files
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 120s
+    labels:
+      - "com.cbs.service=parts-system"
+      - "com.cbs.version=1.0.0"
+
+volumes:
+  cbs_logs:
+    driver: local
+  cbs_temp:
+    driver: local
+
+networks:
+  default:
+    name: cbs-network

@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script>
+    // CBS Parts System - Production Configuration
+    window.CBS_CONFIG = {
+        "environment": "production",
+        "domain": "cbsparts.yourcompany.com",
+        "baseUrl": "https://cbsparts.yourcompany.com",
+        "api": {
+                "partsSearch": "https://cbsparts.yourcompany.com/api/parts/search",
+                "partsHealth": "https://cbsparts.yourcompany.com/api/parts/health",
+                "submitOrder": "https://cbsparts.yourcompany.com/api/submit-order",
+                "getOrder": "https://cbsparts.yourcompany.com/api/order",
+                "updateOrder": "https://cbsparts.yourcompany.com/api/order",
+                "generateQuotation": "https://cbsparts.yourcompany.com/api/generate-quotation",
+                "quotationTemplate": "https://cbsparts.yourcompany.com/api/quotation-template"
+        },
+        "urls": {
+                "orderForm": "https://cbsparts.yourcompany.com/templates/enhanced_order_form.html",
+                "reviewInterface": "https://cbsparts.yourcompany.com/templates/parts_review_interface.html",
+                "quotationGenerator": "https://cbsparts.yourcompany.com/quotation/"
+        }
+};
+    console.log('CBS Production Config loaded for:', window.CBS_CONFIG.domain);
+</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CBS Parts Selection Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .search-section {
+            margin-bottom: 2rem;
+        }
+
+        .search-container {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 1rem 1rem 1rem 3rem;
+            border: 2px solid #e1e8ed;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+            font-size: 1.2rem;
+        }
+
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+
+        .suggestion-item {
+            padding: 1rem;
+            border-bottom: 1px solid #f1f3f4;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .suggestion-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .suggestion-code {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 0.25rem;
+        }
+
+        .suggestion-description {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .suggestion-price {
+            color: #28a745;
+            font-weight: 600;
+            float: right;
+        }
+
+        .selected-parts {
+            margin-top: 2rem;
+        }
+
+        .parts-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        }
+
+        .parts-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .parts-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #f1f3f4;
+        }
+
+        .parts-table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .quantity-input {
+            width: 80px;
+            padding: 0.5rem;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .remove-btn:hover {
+            background: #c82333;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102,126,234,0.3);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .summary {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-top: 2rem;
+        }
+
+        .summary h3 {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-total {
+            font-weight: 600;
+            font-size: 1.2rem;
+            border-top: 2px solid #dee2e6;
+            padding-top: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 1rem;
+            color: #6c757d;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            display: none;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            display: none;
+        }
+
+        .category-filter {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .category-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #dee2e6;
+            background: white;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+        }
+
+        .category-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .category-btn:hover {
+            border-color: #667eea;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 0;
+                border-radius: 0;
+            }
+            
+            .content {
+                padding: 1rem;
+            }
+            
+            .parts-table {
+                font-size: 0.9rem;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 CBS Parts Selection</h1>
+            <p>Search and select parts for your quotation</p>
+        </div>
+
+        <div class="content">
+            <div class="error" id="errorMessage"></div>
+            <div class="success" id="successMessage"></div>
+
+            <div class="search-section">
+                <h3>Search Parts</h3>
+                
+                <div class="category-filter" id="categoryFilter">
+                    <!-- Categories will be loaded here -->
+                </div>
+
+                <div class="search-container">
+                    <div class="search-icon">🔍</div>
+                    <input 
+                        type="text" 
+                        class="search-input" 
+                        id="searchInput" 
+                        placeholder="Search by part code or description..."
+                        autocomplete="off"
+                    >
+                    <div class="suggestions" id="suggestions"></div>
+                </div>
+
+                <div class="loading" id="loading">Searching...</div>
+            </div>
+
+            <div class="selected-parts">
+                <h3>Selected Parts</h3>
+                <table class="parts-table" id="partsTable">
+                    <thead>
+                        <tr>
+                            <th>Product Code</th>
+                            <th>Description</th>
+                            <th>Unit Price (€)</th>
+                            <th>Quantity</th>
+                            <th>Line Total (€)</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="partsTableBody">
+                        <!-- Selected parts will appear here -->
+                    </tbody>
+                </table>
+
+                <div class="summary" id="summary" style="display: none;">
+                    <h3>Quotation Summary</h3>
+                    <div class="summary-item">
+                        <span>Subtotal:</span>
+                        <span id="subtotal">€0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>VAT (23%):</span>
+                        <span id="vat">€0.00</span>
+                    </div>
+                    <div class="summary-item summary-total">
+                        <span>Total:</span>
+                        <span id="total">€0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-secondary" onclick="clearSelection()">Clear All</button>
+                <button class="btn btn-primary" onclick="generateQuotation()" id="generateBtn" disabled>
+                    Generate Quotation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:8002';
+        
+        // State
+        let selectedParts = [];
+        let searchTimeout = null;
+        let selectedCategory = null;
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+
+        async function initializeApp() {
+            try {
+                // Load categories
+                await loadCategories();
+                
+                // Setup search input
+                setupSearchInput();
+                
+                // Load any pre-existing data from URL parameters
+                loadFromURL();
+                
+                showSuccess('Parts selection interface ready');
+            } catch (error) {
+                showError('Failed to initialize application: ' + error.message);
+            }
+        }
+
+        async function loadCategories() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/parts/categories`);
+                const data = await response.json();
+                
+                const categoryFilter = document.getElementById('categoryFilter');
+                categoryFilter.innerHTML = '<button class="category-btn active" onclick="selectCategory(null)">All</button>';
+                
+                data.categories.forEach(category => {
+                    const btn = document.createElement('button');
+                    btn.className = 'category-btn';
+                    btn.textContent = category;
+                    btn.onclick = () => selectCategory(category);
+                    categoryFilter.appendChild(btn);
+                });
+            } catch (error) {
+                console.error('Failed to load categories:', error);
+            }
+        }
+
+        function selectCategory(category) {
+            selectedCategory = category;
+            
+            // Update active button
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            if (category === null) {
+                document.querySelector('.category-btn').classList.add('active');
+            } else {
+                event.target.classList.add('active');
+            }
+            
+            // Clear current search and suggestions
+            document.getElementById('searchInput').value = '';
+            document.getElementById('suggestions').style.display = 'none';
+        }
+
+        function setupSearchInput() {
+            const searchInput = document.getElementById('searchInput');
+            const suggestions = document.getElementById('suggestions');
+
+            searchInput.addEventListener('input', function() {
+                const query = this.value.trim();
+                
+                if (searchTimeout) {
+                    clearTimeout(searchTimeout);
+                }
+
+                if (query.length < 2) {
+                    suggestions.style.display = 'none';
+                    return;
+                }
+
+                searchTimeout = setTimeout(() => {
+                    searchParts(query);
+                }, 300);
+            });
+
+            // Hide suggestions when clicking outside
+            document.addEventListener('click', function(event) {
+                if (!searchInput.contains(event.target) && !suggestions.contains(event.target)) {
+                    suggestions.style.display = 'none';
+                }
+            });
+        }
+
+        async function searchParts(query) {
+            const loading = document.getElementById('loading');
+            const suggestions = document.getElementById('suggestions');
+
+            try {
+                loading.style.display = 'block';
+                suggestions.style.display = 'none';
+
+                const url = `${API_BASE_URL}/api/parts/search?q=${encodeURIComponent(query)}&limit=10`;
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error('Search failed');
+                }
+
+                const data = await response.json();
+                
+                // Filter by category if selected
+                let parts = data.parts;
+                if (selectedCategory) {
+                    parts = parts.filter(part => part.category === selectedCategory);
+                }
+
+                displaySuggestions(parts);
+
+            } catch (error) {
+                showError('Search failed: ' + error.message);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function displaySuggestions(parts) {
+            const suggestions = document.getElementById('suggestions');
+            suggestions.innerHTML = '';
+
+            if (parts.length === 0) {
+                suggestions.innerHTML = '<div class="suggestion-item">No parts found</div>';
+            } else {
+                parts.forEach(part => {
+                    const item = document.createElement('div');
+                    item.className = 'suggestion-item';
+                    item.onclick = () => selectPart(part);
+                    
+                    const price = part.sales_price > 0 ? `€${part.sales_price.toFixed(2)}` : 'Price TBD';
+                    
+                    item.innerHTML = `
+                        <div class="suggestion-code">${part.product_code}</div>
+                        <div class="suggestion-description">${part.description}</div>
+                        <div class="suggestion-price">${price}</div>
+                    `;
+                    
+                    suggestions.appendChild(item);
+                });
+            }
+
+            suggestions.style.display = 'block';
+        }
+
+        function selectPart(part) {
+            // Check if part is already selected
+            if (selectedParts.find(p => p.product_code === part.product_code)) {
+                showError('Part already selected');
+                return;
+            }
+
+            // Add to selected parts
+            selectedParts.push({
+                ...part,
+                quantity: 1,
+                line_total: part.sales_price || 0
+            });
+
+            // Clear search
+            document.getElementById('searchInput').value = '';
+            document.getElementById('suggestions').style.display = 'none';
+
+            // Update display
+            updatePartsTable();
+            updateSummary();
+            
+            showSuccess(`Added: ${part.product_code}`);
+        }
+
+        function updatePartsTable() {
+            const tbody = document.getElementById('partsTableBody');
+            tbody.innerHTML = '';
+
+            selectedParts.forEach((part, index) => {
+                const row = document.createElement('tr');
+                const price = part.sales_price || 0;
+                const lineTotal = price * part.quantity;
+
+                row.innerHTML = `
+                    <td><strong>${part.product_code}</strong></td>
+                    <td>${part.description}</td>
+                    <td>€${price.toFixed(2)}</td>
+                    <td>
+                        <input 
+                            type="number" 
+                            class="quantity-input" 
+                            value="${part.quantity}" 
+                            min="1" 
+                            max="999"
+                            onchange="updateQuantity(${index}, this.value)"
+                        >
+                    </td>
+                    <td>€${lineTotal.toFixed(2)}</td>
+                    <td>
+                        <button class="remove-btn" onclick="removePart(${index})">Remove</button>
+                    </td>
+                `;
+
+                tbody.appendChild(row);
+            });
+
+            // Enable/disable generate button
+            document.getElementById('generateBtn').disabled = selectedParts.length === 0;
+        }
+
+        function updateQuantity(index, newQuantity) {
+            const quantity = parseInt(newQuantity) || 1;
+            selectedParts[index].quantity = quantity;
+            selectedParts[index].line_total = (selectedParts[index].sales_price || 0) * quantity;
+            
+            updatePartsTable();
+            updateSummary();
+        }
+
+        function removePart(index) {
+            selectedParts.splice(index, 1);
+            updatePartsTable();
+            updateSummary();
+            showSuccess('Part removed');
+        }
+
+        function updateSummary() {
+            const summary = document.getElementById('summary');
+            
+            if (selectedParts.length === 0) {
+                summary.style.display = 'none';
+                return;
+            }
+
+            summary.style.display = 'block';
+
+            const subtotal = selectedParts.reduce((sum, part) => {
+                return sum + ((part.sales_price || 0) * part.quantity);
+            }, 0);
+
+            const vat = subtotal * 0.23; // 23% VAT
+            const total = subtotal + vat;
+
+            document.getElementById('subtotal').textContent = `€${subtotal.toFixed(2)}`;
+            document.getElementById('vat').textContent = `€${vat.toFixed(2)}`;
+            document.getElementById('total').textContent = `€${total.toFixed(2)}`;
+        }
+
+        function clearSelection() {
+            if (selectedParts.length === 0) return;
+            
+            if (confirm('Are you sure you want to clear all selected parts?')) {
+                selectedParts = [];
+                updatePartsTable();
+                updateSummary();
+                showSuccess('Selection cleared');
+            }
+        }
+
+        async function generateQuotation() {
+            if (selectedParts.length === 0) {
+                showError('Please select at least one part');
+                return;
+            }
+
+            // Get customer email (could be from URL parameter or prompt)
+            const customerEmail = getCustomerEmail();
+            
+            try {
+                const generateBtn = document.getElementById('generateBtn');
+                generateBtn.disabled = true;
+                generateBtn.textContent = 'Generating...';
+
+                // Format data for quotation API
+                const quotationData = {
+                    customer_email: customerEmail,
+                    items: selectedParts.map(part => ({
+                        product_code: part.product_code,
+                        description: part.description,
+                        quantity: part.quantity,
+                        unit_price: part.sales_price || 0
+                    }))
+                };
+
+                // Call quotation API or redirect to quotation form
+                redirectToQuotationForm(quotationData);
+
+            } catch (error) {
+                showError('Failed to generate quotation: ' + error.message);
+            } finally {
+                const generateBtn = document.getElementById('generateBtn');
+                generateBtn.disabled = false;
+                generateBtn.textContent = 'Generate Quotation';
+            }
+        }
+
+        function getCustomerEmail() {
+            // Try to get from URL parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            let email = urlParams.get('email');
+            
+            if (!email) {
+                // Prompt user for email
+                email = prompt('Please enter customer email address:');
+            }
+            
+            return email || 'customer@example.com';
+        }
+
+        function redirectToQuotationForm(quotationData) {
+            // Create URL with selected parts data
+            const baseUrl = window.location.origin;
+            const params = new URLSearchParams({
+                parts: JSON.stringify(quotationData.items),
+                customer_email: quotationData.customer_email,
+                source: 'parts_selection'
+            });
+            
+            // Redirect to the quotation generator or Smartsheet form
+            const quotationUrl = `${baseUrl}/quotation-form?${params.toString()}`;
+            
+            showSuccess('Redirecting to quotation form...');
+            setTimeout(() => {
+                window.location.href = quotationUrl;
+            }, 1000);
+        }
+
+        function loadFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const partsData = urlParams.get('parts');
+            
+            if (partsData) {
+                try {
+                    const parts = JSON.parse(partsData);
+                    // Load pre-selected parts
+                    parts.forEach(partData => {
+                        // You could auto-load these parts here
+                    });
+                } catch (error) {
+                    console.error('Failed to load parts from URL:', error);
+                }
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+{
+  "company": {
+    "name": "CONCRETE Batching Systems Ltd.",
+    "addressLines": ["140 Markethill Road", "Armagh, Co. Armagh", "BT60 1LF"],
+    "email": "purchasing@concretebatchingsystems.com",
+    "phone": "+44 (0)28 3082 1172",
+    "vatReg": "978324675"
+  },
+  "meta": {
+  "accountRefNo": "AC-001",
+    "quotationNo": "QB-00123",
+    "quotationDate": "2025-08-19",
+    "validUntil": "2025-09-19"
+  },
+  "customer": {
+    "name": "John Smith",
+    "company": "Smith Construction Ltd.",
+    "addressLines": ["1 Main Street", "Belfast", "BT1 1AA"],
+    "email": "john@smithco.com",
+    "phone": "+44 7700 900123"
+  },
+  "items": [
+    {
+      "item": "Material 1",
+      "code": "M1",
+      "description": "Material 1",
+      "quantity": 2,
+      "unitPrice": 120,
+      "taxable": "X"
+    },
+    {
+      "item": "Material 2",
+      "code": "M2",
+      "description": "Material 2",
+      "quantity": 3,
+      "unitPrice": 35
+    },
+    {
+      "item": "Labour 1",
+      "code": "L1",
+      "description": "Labour 1",
+      "quantity": 1,
+      "unitPrice": 1000,
+      "taxable": "X"
+    },
+    {
+      "item": "Plant 1",
+      "code": "P1",
+      "description": "Plant 1",
+      "quantity": 6,
+      "unitPrice": 80,
+      "taxable": "X"
+    }
+  ],
+  "taxRatePercent": 20,
+  "carriage": 0,
+  "currency": "GBP",
+  "terms": [
+    "Customer will be billed after indicating acceptance of this Sales Quotation.",
+    "Payment will be due prior to delivery of the service/goods.",
+    "Please return the signed Sales Quotation to the address above."
+  ],
+  "acceptanceNote": "Customer Acceptance (sign below)",
+  "footerNote": "If you have any question about this Sales Quotation, please contact:",
+  "email": "purchasing@concretebatchingsystems.com"
+}

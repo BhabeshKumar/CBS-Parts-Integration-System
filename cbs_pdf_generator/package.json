@@ -1,0 +1,42 @@
+{
+  "name": "cbs_pdf_generator",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build --mode production",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "dev:server": "tsx server/index.ts",
+    "pdf:dev": "tsx server/index.ts",
+    "start:production": "NODE_ENV=production tsx server/production-server.ts",
+    "start": "NODE_ENV=production tsx server/production-server.ts"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.12",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "puppeteer": "^23.7.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.33.0",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@types/node": "^22.8.7",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@vitejs/plugin-react": "^5.0.0",
+    "eslint": "^9.33.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.3.0",
+    "tailwindcss": "^4.1.12",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.39.1",
+    "tsx": "^4.19.2",
+    "vite": "^7.1.2"
+  }
+}

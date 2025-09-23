@@ -1,0 +1,47 @@
+[Unit]
+Description=CBS Parts System - Production Service
+Documentation=https://github.com/cbs/parts-system
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=forking
+RemainAfterExit=yes
+WorkingDirectory=/opt/cbs-parts-system
+ExecStartPre=/usr/bin/docker-compose -f deployment/docker-compose-production.yml down
+ExecStart=/usr/bin/docker-compose -f deployment/docker-compose-production.yml up -d
+ExecStop=/usr/bin/docker-compose -f deployment/docker-compose-production.yml down
+ExecReload=/usr/bin/docker-compose -f deployment/docker-compose-production.yml restart
+TimeoutStartSec=300
+TimeoutStopSec=120
+Restart=always
+RestartSec=30
+
+# Environment
+Environment=SMARTSHEET_API_TOKEN=7R7hgaXfL3J2pBrk757P73G4umegsLkWgRSgB
+Environment=ORDERS_INTAKE_SHEET_ID=GxQx8H833G8rQrh7hX88fX4cJMVmqvFMRmq83c71
+Environment=SALES_WORKS_ORDERS_SHEET_ID=G7Wm6pV3rQ6p8PpJg4WQ8R2MP29PPW25WrpjQ391
+Environment=CBS_PARTS_SHEET_ID=4695255724019588
+Environment=CBS_DISCOUNTS_SHEET_ID=8920011042148228
+Environment=CBS_DIRECTOR_EMAIL=bhabesh.kumar@sheaney.ie
+Environment=SLACK_WEBHOOK_URL=your_slack_webhook
+Environment=EMAIL_USERNAME=your_email@company.com
+Environment=EMAIL_PASSWORD=your_app_password
+Environment=ALERT_EMAIL=admin@company.com
+
+# Security
+User=cbsuser
+Group=cbsuser
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/cbs-parts-system/logs
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cbs-parts-system
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script>
+    // CBS Parts System - Auto-detecting Configuration
+    const isLive = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    const domain = isLive ? window.location.hostname : 'localhost';
+    const protocol = isLive ? window.location.protocol : 'http:';
+    const baseUrl = `${protocol}//${domain}`;
+    
+    window.CBS_CONFIG = {
+        "environment": isLive ? "production" : "development",
+        "domain": domain,
+        "baseUrl": baseUrl,
+        "api": {
+                "partsSearch": `${baseUrl}:8002/api/parts/search`,
+                "partsHealth": `${baseUrl}:8002/api/parts/health`,
+                "submitOrder": `${baseUrl}:8003/api/submit-order`,
+                "getOrder": `${baseUrl}:8003/api/order`,
+                "updateOrder": `${baseUrl}:8003/api/order`,
+                "generateQuotation": `${baseUrl}:8003/api/generate-quotation`,
+                "quotationTemplate": `${baseUrl}:8003/api/quotation-template`
+        },
+        "urls": {
+                "orderForm": `${baseUrl}/enhanced_order_form.html`,
+                "reviewInterface": `${baseUrl}/parts_review_interface.html`,
+                "quotationGenerator": `${baseUrl}:5173/`
+        }
+};
+    console.log('CBS Production Config loaded for:', window.CBS_CONFIG.domain);
+</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>CBS Parts Review & Pricing (v3.0 - Data Encoding Fixed)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .order-info {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 5px solid #3498db;
+        }
+
+        .order-info h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .info-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #555;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            color: #2c3e50;
+            font-size: 1.1em;
+        }
+
+        .parts-section {
+            margin-top: 30px;
+        }
+
+        .parts-section h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.6em;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .parts-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .parts-table th {
+            background: linear-gradient(135deg, #34495e, #2c3e50);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .parts-table td {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .parts-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .parts-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .price-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .price-input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .quantity-input {
+            width: 80px;
+            padding: 8px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .line-total {
+            font-weight: 600;
+            color: #27ae60;
+            font-size: 1.1em;
+        }
+
+        .totals-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: right;
+        }
+
+        .total-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .grand-total {
+            font-size: 1.3em;
+            font-weight: 700;
+            color: #2c3e50;
+            border-top: 2px solid #3498db;
+            padding-top: 15px;
+            margin-top: 15px;
+        }
+
+        .actions {
+            margin-top: 30px;
+            text-align: center;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #27ae60, #229954);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(39, 174, 96, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(149, 165, 166, 0.4);
+        }
+
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status-approved {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .notes-section {
+            margin-top: 20px;
+        }
+
+        .notes-textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: inherit;
+            resize: vertical;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #666;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #f5c6cb;
+        }
+
+        .discount-section {
+            background: #e8f5e8;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #27ae60;
+        }
+
+        .discount-input {
+            width: 100px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 10px;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .parts-table {
+                font-size: 0.9em;
+            }
+            
+            .actions {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 CBS Parts Review & Pricing</h1>
+            <p>Review customer order, set prices, and generate quotation</p>
+        </div>
+
+        <div class="content">
+            <div id="loading" class="loading">
+                <p>Loading order details...</p>
+            </div>
+
+            <div id="error" class="error" style="display: none;"></div>
+
+            <div id="orderContent" style="display: none;">
+                <!-- Order Information -->
+                <div class="order-info">
+                    <h3>📋 Order Information</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label">Quote ID</div>
+                            <div class="info-value" id="quoteId">-</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Customer Name</div>
+                            <div class="info-value" id="customerName">-</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Email</div>
+                            <div class="info-value" id="customerEmail">-</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Mobile</div>
+                            <div class="info-value" id="customerMobile">-</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Order Date</div>
+                            <div class="info-value" id="orderDate">-</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Required Date</div>
+                            <div class="info-value" id="requiredDate">-</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Status</div>
+                            <div class="info-value">
+                                <span id="orderStatus" class="status-badge status-pending">Pending Review</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 15px;">
+                        <div class="info-label">Delivery Address</div>
+                        <div class="info-value" id="deliveryAddress">-</div>
+                    </div>
+                </div>
+
+                <!-- Selected Parts -->
+                <div class="parts-section">
+                    <h3>🔧 Selected Parts & Pricing</h3>
+                    
+                    <table class="parts-table">
+                        <thead>
+                            <tr>
+                                <th>Product Code</th>
+                                <th>Description</th>
+                                <th>Qty</th>
+                                <th>Unit Price (€)</th>
+                                <th>Line Total (€)</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="partsTableBody">
+                            <!-- Parts will be populated here -->
+                        </tbody>
+                    </table>
+
+                    <!-- Discount Section -->
+                    <div class="discount-section">
+                        <h4>💰 Customer Discount</h4>
+                        <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                            <label>
+                                <input type="radio" name="discountType" value="percentage" checked> 
+                                Percentage: <input type="number" id="discountPercentage" class="discount-input" value="0" min="0" max="100" step="0.1">%
+                            </label>
+                            <label>
+                                <input type="radio" name="discountType" value="fixed"> 
+                                Fixed Amount: €<input type="number" id="discountFixed" class="discount-input" value="0" min="0" step="0.01">
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Totals -->
+                    <div class="totals-section">
+                        <div class="total-line">
+                            <span>Subtotal:</span>
+                            <span id="subtotal">€0.00</span>
+                        </div>
+                        <div class="total-line">
+                            <span>Discount:</span>
+                            <span id="discountAmount">-€0.00</span>
+                        </div>
+                        <div class="total-line">
+                            <span>VAT (23%):</span>
+                            <span id="vatAmount">€0.00</span>
+                        </div>
+                        <div class="total-line grand-total">
+                            <span>Grand Total:</span>
+                            <span id="grandTotal">€0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Notes -->
+                <div class="notes-section">
+                    <h3>📝 Additional Notes & Comments</h3>
+                    <textarea id="additionalNotes" class="notes-textarea" placeholder="Add any additional notes or comments for this order..."></textarea>
+                </div>
+
+                <!-- Actions -->
+                <div class="actions">
+                    <button class="btn btn-primary" onclick="updatePricing()">🔄 Update Pricing</button>
+                    <button class="btn btn-primary" onclick="openQuotationGenerator()">📝 Open Quotation Generator</button>
+                    <button class="btn btn-success" onclick="approveAndGenerate()">✅ Approve & Generate Quote</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let orderData = null;
+        let partsData = [];
+
+        // Get review ID from URL parameters (accepts both review_id and quote_id)
+        const urlParams = new URLSearchParams(window.location.search);
+        const reviewId = urlParams.get('review_id') || urlParams.get('quote_id');
+
+        if (!reviewId) {
+            showError('No review ID or quote ID provided in URL');
+        } else {
+            loadOrderData();
+        }
+
+        async function loadOrderData() {
+            try {
+                // Fetch actual order data from the API
+                const response = await fetch(`${window.CBS_CONFIG.api.getOrder}/${reviewId}`);
+                
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error(`Order with ID ${reviewId} not found`);
+                    }
+                    throw new Error(`Failed to load order: ${response.status}`);
+                }
+                
+                orderData = await response.json();
+                
+                // Parse parts from additional notes if selectedParts is empty
+                if (!orderData.selectedParts || orderData.selectedParts.length === 0) {
+                    orderData.selectedParts = parsePartsFromNotes(orderData.additionalNotes);
+                }
+                
+                // Calculate line totals for existing data
+                orderData.selectedParts.forEach(part => {
+                    part.line_total = part.quantity * part.sales_price;
+                });
+
+                displayOrderData();
+                
+            } catch (error) {
+                showError('Failed to load order data: ' + error.message);
+            }
+        }
+
+        function parsePartsFromNotes(additionalNotes) {
+            const parts = [];
+            if (!additionalNotes) return parts;
+            
+            // Look for "SELECTED PARTS:" section
+            const partsSection = additionalNotes.split('SELECTED PARTS:')[1];
+            if (!partsSection) return parts;
+            
+            // Parse each line that looks like: "704-14-585-000-10-3P - Mixer Side Rubber - 10mm 3Ply (Qty: 1)"
+            const lines = partsSection.split('\n').filter(line => line.trim());
+            
+            lines.forEach(line => {
+                const trimmedLine = line.trim();
+                if (trimmedLine && trimmedLine.includes(' - ') && trimmedLine.includes('(Qty:')) {
+                    // Extract part code, description, and quantity
+                    const qtyMatch = trimmedLine.match(/\(Qty:\s*(\d+)\)/);
+                    const quantity = qtyMatch ? parseInt(qtyMatch[1]) : 1;
+                    
+                    // Split by " - " to get code and description
+                    const beforeQty = trimmedLine.split('(Qty:')[0].trim();
+                    const parts_split = beforeQty.split(' - ');
+                    
+                    if (parts_split.length >= 2) {
+                        const code = parts_split[0].trim();
+                        const description = parts_split.slice(1).join(' - ').trim();
+                        
+                        parts.push({
+                            product_code: code,
+                            description: description,
+                            quantity: quantity,
+                            sales_price: 0, // To be set by CBS team
+                            line_total: 0
+                        });
+                    }
+                }
+            });
+            
+            return parts;
+        }
+
+        function displayOrderData() {
+            // Hide loading
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('orderContent').style.display = 'block';
+
+            // Populate order information (mapping API field names to display)
+            document.getElementById('quoteId').textContent = orderData.quote_id;
+            document.getElementById('customerName').textContent = orderData.customerName;
+            document.getElementById('customerEmail').textContent = orderData.customerEmail;
+            document.getElementById('customerMobile').textContent = orderData.customerPhone;
+            document.getElementById('orderDate').textContent = orderData.createdDate ? orderData.createdDate.split('T')[0] : '';
+            document.getElementById('requiredDate').textContent = orderData.required_by_date || '';
+            document.getElementById('deliveryAddress').textContent = orderData.customerAddress;
+            document.getElementById('additionalNotes').value = orderData.additionalNotes || '';
+
+            // Populate parts table
+            populatePartsTable();
+            
+            // Calculate totals
+            calculateTotals();
+
+            // Add event listeners for real-time calculation
+            setupEventListeners();
+        }
+
+        function populatePartsTable() {
+            const tbody = document.getElementById('partsTableBody');
+            tbody.innerHTML = '';
+
+            orderData.selectedParts.forEach((part, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${part.product_code}</strong></td>
+                    <td>${part.description}</td>
+                    <td>
+                        <input type="number" class="quantity-input" value="${part.quantity}" 
+                               min="1" data-index="${index}" onchange="updateQuantity(${index}, this.value)">
+                    </td>
+                    <td>
+                        <input type="number" class="price-input" value="${part.sales_price}" 
+                               min="0" step="0.01" data-index="${index}" placeholder="Enter price..."
+                               onchange="updatePrice(${index}, this.value)">
+                    </td>
+                    <td class="line-total" id="lineTotal${index}">€${(part.quantity * part.sales_price).toFixed(2)}</td>
+                    <td>
+                        <button class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.8em;" 
+                                onclick="removePart(${index})">Remove</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateQuantity(index, quantity) {
+            orderData.selectedParts[index].quantity = parseInt(quantity) || 1;
+            orderData.selectedParts[index].line_total = 
+                orderData.selectedParts[index].quantity * orderData.selectedParts[index].sales_price;
+            
+            document.getElementById(`lineTotal${index}`).textContent = 
+                `€${orderData.selectedParts[index].line_total.toFixed(2)}`;
+            
+            calculateTotals();
+        }
+
+        function updatePrice(index, price) {
+            orderData.selectedParts[index].sales_price = parseFloat(price) || 0;
+            orderData.selectedParts[index].line_total = 
+                orderData.selectedParts[index].quantity * orderData.selectedParts[index].sales_price;
+            
+            document.getElementById(`lineTotal${index}`).textContent = 
+                `€${orderData.selectedParts[index].line_total.toFixed(2)}`;
+            
+            calculateTotals();
+        }
+
+        function removePart(index) {
+            if (confirm('Are you sure you want to remove this part?')) {
+                orderData.selectedParts.splice(index, 1);
+                populatePartsTable();
+                calculateTotals();
+            }
+        }
+
+        function calculateTotals() {
+            const subtotal = orderData.selectedParts.reduce((sum, part) => sum + part.line_total, 0);
+            
+            // Calculate discount
+            const discountType = document.querySelector('input[name="discountType"]:checked').value;
+            let discountAmount = 0;
+            
+            if (discountType === 'percentage') {
+                const percentage = parseFloat(document.getElementById('discountPercentage').value) || 0;
+                discountAmount = subtotal * (percentage / 100);
+            } else {
+                discountAmount = parseFloat(document.getElementById('discountFixed').value) || 0;
+            }
+            
+            const discountedTotal = subtotal - discountAmount;
+            const vatAmount = discountedTotal * 0.23; // 23% VAT
+            const grandTotal = discountedTotal + vatAmount;
+
+            // Update display
+            document.getElementById('subtotal').textContent = `€${subtotal.toFixed(2)}`;
+            document.getElementById('discountAmount').textContent = `-€${discountAmount.toFixed(2)}`;
+            document.getElementById('vatAmount').textContent = `€${vatAmount.toFixed(2)}`;
+            document.getElementById('grandTotal').textContent = `€${grandTotal.toFixed(2)}`;
+        }
+
+        function setupEventListeners() {
+            // Add listeners for discount changes
+            document.getElementById('discountPercentage').addEventListener('input', calculateTotals);
+            document.getElementById('discountFixed').addEventListener('input', calculateTotals);
+            document.querySelectorAll('input[name="discountType"]').forEach(radio => {
+                radio.addEventListener('change', calculateTotals);
+            });
+        }
+
+
+        async function updatePricing() {
+            try {
+                const updateData = {
+                    status: 'pricing_updated',
+                    selectedParts: orderData.selectedParts,
+                    additionalNotes: document.getElementById('additionalNotes').value,
+                    quotationUpdate: 'In Progress'
+                };
+                
+                const response = await fetch(`${window.CBS_CONFIG.api.updateOrder}/${reviewId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updateData)
+                });
+                
+                if (response.ok) {
+                    console.log('✅ Pricing updated successfully!');
+                } else {
+                    throw new Error('Failed to update pricing');
+                }
+            } catch (error) {
+                showError('Failed to update pricing: ' + error.message);
+            }
+        }
+
+        async function approveAndGenerate() {
+            // Validate that all parts have prices
+            const missingPrices = orderData.selectedParts.filter(part => !part.sales_price || part.sales_price <= 0);
+            if (missingPrices.length > 0) {
+                showError('⚠️ Please set prices for all parts before approving:\n' + 
+                      missingPrices.map(p => `- ${p.product_code}`).join('\n'));
+                return;
+            }
+            
+            if (confirm('Approve this order and generate quotation?')) {
+                try {
+                    const updateData = {
+                        status: 'approved',
+                        selectedParts: orderData.selectedParts,
+                        additionalNotes: document.getElementById('additionalNotes').value,
+                        quotationUpdate: 'Quotation Prepared, Awaiting Approval',
+                        orderStatus: 'In Progress'
+                    };
+                    
+                    const response = await fetch(`${window.CBS_CONFIG.api.updateOrder}/${reviewId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(updateData)
+                    });
+                    
+                    if (response.ok) {
+                        // Update UI
+                        document.getElementById('orderStatus').textContent = 'Approved';
+                        document.getElementById('orderStatus').className = 'status-badge status-approved';
+                        
+                        // Trigger quotation generation
+                        const quotationResponse = await fetch(`https://cbsparts.yourcompany.com/api/generate-quotation/${reviewId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            }
+                        });
+                        
+                        if (quotationResponse.ok) {
+                            const quotationResult = await quotationResponse.json();
+                            console.log(`✅ Order approved and quotation generated!`);
+                            console.log(`🎉 Quote ID: ${quotationResult.quoteId}`);
+                            console.log(`📄 PDF: ${quotationResult.pdfUrl || 'Generated'}`);
+                            console.log(`⏰ Generated: ${new Date(quotationResult.generatedAt || Date.now()).toLocaleString()}`);
+                            
+                            // Open quotation PDF if available
+                            if (quotationResult.pdfUrl) {
+                                window.open(quotationResult.pdfUrl, '_blank');
+                            }
+                        } else {
+                            console.log('✅ Order approved! Note: Quotation generation had issues but order is approved.');
+                        }
+                        
+                    } else {
+                        throw new Error('Failed to approve order');
+                    }
+                    
+                } catch (error) {
+                    showError('Failed to approve order: ' + error.message);
+                }
+            }
+        }
+
+        async function openQuotationGenerator() {
+            try {
+                console.log('🔍 Opening quotation generator for:', reviewId);
+                
+                // Use the order data we already have instead of fetching template
+                const templateData = {
+                    quote_id: orderData.quote_id,
+                    customer: {
+                        name: orderData.customerName,
+                        email: orderData.customerEmail,
+                        phone: orderData.customerPhone,
+                        address: orderData.customerAddress
+                    },
+                    items: orderData.selectedParts,
+                    orderStatus: orderData.orderStatus,
+                    createdDate: orderData.createdDate
+                };
+                    console.log('✅ Template data loaded:', templateData);
+                    
+                    // Show options for opening quotation generator
+                    const choice = confirm(`Choose how to open the quotation generator:
+                    
+OK = Open CBS PDF Generator (React App)
+Cancel = Download quotation data as JSON file`);
+                    
+                    if (choice) {
+                        // Option 1: Open CBS PDF Generator (React/Vite app) with pre-populated data
+                        
+                        // Calculate current discount amount
+                        const subtotalForDiscount = orderData.selectedParts.reduce((sum, part) => sum + (part.quantity * part.sales_price), 0);
+                        const discountTypeElement = document.querySelector('input[name="discountType"]:checked');
+                        const discountType = discountTypeElement ? discountTypeElement.value : 'percentage';
+                        let discountAmount = 0;
+                        
+                        console.log('💸 Calculating discount...');
+                        console.log('  - Subtotal for discount:', subtotalForDiscount);
+                        console.log('  - Discount type:', discountType);
+                        
+                        if (discountType === 'percentage') {
+                            const percentageElement = document.getElementById('discountPercentage');
+                            const percentage = percentageElement ? parseFloat(percentageElement.value) || 0 : 0;
+                            discountAmount = subtotalForDiscount * (percentage / 100);
+                            console.log('  - Percentage:', percentage + '%');
+                        } else {
+                            const fixedElement = document.getElementById('discountFixed');
+                            const fixed = fixedElement ? parseFloat(fixedElement.value) || 0 : 0;
+                            discountAmount = fixed;
+                            console.log('  - Fixed amount:', fixed);
+                        }
+                        
+                        console.log('  - Calculated discount amount:', discountAmount);
+                        
+                        // Convert template data to CBS PDF Generator format
+                        // Use the CURRENT prices from the review interface, not the template data
+                        const cbsData = {
+                            quotationNo: orderData.quote_id,
+                            customer: orderData.customerName,
+                            customer_company: orderData.customerName,
+                            customer_address: [orderData.customerAddress],
+                            customer_email: orderData.customerEmail,
+                            customer_phone: orderData.customerPhone,
+                            items: orderData.selectedParts.map((part, index) => ({
+                                item: (index + 1).toString(),
+                                code: part.product_code,
+                                description: part.description,
+                                quantity: part.quantity,
+                                unitPrice: part.sales_price || 0  // Use the current price set by CBS
+                            })),
+                            taxRate: 23,
+                            carriage: -discountAmount  // Use negative carriage for discount
+                        };
+                        
+                        // Encode data as base64 (as expected by CBS PDF Generator)
+                        const encodedData = btoa(JSON.stringify(cbsData));
+                        const quotationUrl = `${window.CBS_CONFIG.urls.quotationGenerator}?data=${encodedData}`;
+                        
+                        console.log('🚀 Opening quotation URL with data:', quotationUrl);
+                        console.log('📊 CBS formatted data:', cbsData);
+                        console.log('💰 Prices being sent:');
+                        cbsData.items.forEach(item => {
+                            console.log(`  - ${item.code}: €${item.unitPrice} x ${item.quantity} = €${(item.unitPrice * item.quantity).toFixed(2)}`);
+                        });
+                        console.log(`💸 Discount: €${discountAmount.toFixed(2)} (${discountType})`);
+                        console.log(`🏷️ Carriage (discount): €${cbsData.carriage.toFixed(2)}`);
+                        console.log('🔗 Encoded data length:', encodedData.length);
+                        
+                        // Show the user the actual URL being generated
+                        if (quotationUrl.length > 200) {
+                            console.log(`✅ Generating CBS PDF Generator URL with encoded data!`);
+                            console.log(`Data includes: ${cbsData.items.length} items, customer: ${cbsData.customer}`);
+                            console.log(`This should pre-populate your quotation generator!`);
+                        }
+                        
+                        // Try to open the quotation generator
+                        const newWindow = window.open(quotationUrl, '_blank');
+                        
+                        if (!newWindow) {
+                            console.error('Pop-up blocked! Please allow pop-ups and try again');
+                            showError('Pop-up blocked! Please allow pop-ups to open the quotation generator.');
+                        } else {
+                            // Store the quotation data for the quotation generator to access
+                            localStorage.setItem(`quotation_data_${reviewId}`, JSON.stringify(templateData));
+                            
+                            console.log(`✅ CBS PDF Generator opened with current prices and discount!`);
+                            console.log(`📋 Quote ID: ${cbsData.quotationNo}`);
+                            console.log(`👤 Customer: ${cbsData.customer}`);
+                            console.log(`🔧 Parts: ${cbsData.items.length} items with prices loaded`);
+                        }
+                    } else {
+                        // Option 2: Download as JSON file
+                        const dataStr = JSON.stringify(templateData, null, 2);
+                        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                        const url = URL.createObjectURL(dataBlob);
+                        
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `quotation_data_${reviewId}.json`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                        
+                        console.log('Quotation data downloaded! You can import this into your quotation generator.');
+                    }
+                
+            } catch (error) {
+                showError('Error opening quotation generator: ' + error.message);
+                console.error('Quotation generator error:', error);
+            }
+        }
+
+
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = message;
+        }
+    </script>
+
+    <!-- Powered by Sheaney Footer -->
+    <footer style="margin-top: 40px; padding: 20px 0; border-top: 1px solid #e0e0e0; text-align: center; background-color: #f9f9f9;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 12px; font-family: Arial, sans-serif;">
+            <span style="color: #666; font-size: 14px; font-weight: 500;">Powered by</span>
+            <img src="logo/Sheaney Logo BLACK 1.png" alt="Sheaney" style="height: 32px; object-fit: contain;">
+
+        </div>
+        <div style="margin-top: 8px; color: #888; font-size: 12px;">
+            Business Automation Solutions
+        </div>
+    </footer>
+</body>
+</html>

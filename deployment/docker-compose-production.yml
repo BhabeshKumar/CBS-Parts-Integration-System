@@ -1,0 +1,188 @@
+# CBS Parts System - Production Docker Deployment
+# Complete configuration with your actual API tokens and Sheet IDs
+
+version: '3.8'
+
+services:
+  # Parts Search API
+  parts-api:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile.parts-api
+    container_name: cbs-parts-api
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SMARTSHEET_API_TOKEN=7R7hgaXfL3J2pBrk757P73G4umegsLkWgRSgB
+      - ORDERS_INTAKE_SHEET_ID=p3G494hxj7PMRR54xFH4vFV4gf2g94vqM4V9Q7H1
+      - SALES_WORKS_ORDERS_SHEET_ID=G7Wm6pV3rQ6p8PpJg4WQ8R2MP29PPW25WrpjQ391
+      - CBS_PARTS_SHEET_ID=4695255724019588
+      - CBS_DISCOUNTS_SHEET_ID=8920011042148228
+      - CBS_DIRECTOR_EMAIL=bhabesh.kumar@sheaney.ie
+      - CBS_ENVIRONMENT=production
+    volumes:
+      - ../config:/app/config:ro
+      - ../CBS Parts from Sage.xlsx:/app/CBS Parts from Sage.xlsx:ro
+      - ../logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Form Submission API
+  form-api:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile.form-api
+    container_name: cbs-form-api
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SMARTSHEET_API_TOKEN=7R7hgaXfL3J2pBrk757P73G4umegsLkWgRSgB
+      - ORDERS_INTAKE_SHEET_ID=p3G494hxj7PMRR54xFH4vFV4gf2g94vqM4V9Q7H1
+      - SALES_WORKS_ORDERS_SHEET_ID=G7Wm6pV3rQ6p8PpJg4WQ8R2MP29PPW25WrpjQ391
+      - CBS_PARTS_SHEET_ID=4695255724019588
+      - CBS_DISCOUNTS_SHEET_ID=8920011042148228
+      - CBS_DIRECTOR_EMAIL=bhabesh.kumar@sheaney.ie
+      - CBS_ENVIRONMENT=production
+    volumes:
+      - ../config:/app/config:ro
+      - ../logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - parts-api
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Web Server for Templates
+  web-server:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile.web-server
+    container_name: cbs-web-server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - CBS_ENVIRONMENT=production
+    volumes:
+      - ../templates:/app/templates:ro
+      - ../logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Quotation Generator (Node.js/React)
+  quotation-generator:
+    build:
+      context: ../cbs_pdf_generator
+      dockerfile: ../deployment/Dockerfile.quotation-generator
+    container_name: cbs-quotation-generator
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=production
+      - CBS_ENVIRONMENT=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Nginx Reverse Proxy with SSL
+  nginx:
+    image: nginx:alpine
+    container_name: cbs-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-production.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ../logs:/var/log/nginx
+    depends_on:
+      - parts-api
+      - form-api
+      - web-server
+      - quotation-generator
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # System Monitor & Health Checker
+  monitor:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile.monitor
+    container_name: cbs-monitor
+    restart: unless-stopped
+    environment:
+      - SMARTSHEET_API_TOKEN=7R7hgaXfL3J2pBrk757P73G4umegsLkWgRSgB
+      - CBS_DIRECTOR_EMAIL=bhabesh.kumar@sheaney.ie
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - EMAIL_SMTP_HOST=${EMAIL_SMTP_HOST}
+      - EMAIL_USERNAME=${EMAIL_USERNAME}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - ALERT_EMAIL=${ALERT_EMAIL}
+    volumes:
+      - ../logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - parts-api
+      - form-api
+      - web-server
+      - quotation-generator
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  logs:
+
+networks:
+  default:
+    driver: bridge

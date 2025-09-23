@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script>
+    // CBS Parts System - Auto-detecting Configuration
+    const isLive = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    const domain = isLive ? window.location.hostname : 'localhost';
+    const protocol = isLive ? window.location.protocol : 'http:';
+    const baseUrl = `${protocol}//${domain}`;
+    
+    window.CBS_CONFIG = {
+        "environment": isLive ? "production" : "development",
+        "domain": domain,
+        "baseUrl": baseUrl,
+        "api": {
+                "partsSearch": `${baseUrl}:8002/api/parts/search`,
+                "partsHealth": `${baseUrl}:8002/api/parts/health`,
+                "submitOrder": `${baseUrl}:8003/api/submit-order`,
+                "getOrder": `${baseUrl}:8003/api/order`,
+                "updateOrder": `${baseUrl}:8003/api/order`,
+                "generateQuotation": `${baseUrl}:8003/api/generate-quotation`,
+                "quotationTemplate": `${baseUrl}:8003/api/quotation-template`
+        },
+        "urls": {
+                "orderForm": `${baseUrl}/enhanced_order_form.html`,
+                "reviewInterface": `${baseUrl}/parts_review_interface.html`,
+                "quotationGenerator": `${baseUrl}:5173/`
+        }
+    };
+    console.log('CBS Production Config loaded for:', window.CBS_CONFIG.domain);
+</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CBS Enhanced Order Form</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .form-container {
+            padding: 2rem;
+        }
+
+        .form-section {
+            margin-bottom: 2rem;
+            border: 1px solid #e1e8ed;
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-row.full-width {
+            grid-template-columns: 1fr;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #2c3e50;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            padding: 0.75rem;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+        }
+
+        .required {
+            color: #e74c3c;
+        }
+
+        /* Parts Selection Section */
+        .parts-selection {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .search-container {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 1rem 1rem 1rem 3rem;
+            border: 2px solid #e1e8ed;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+            background: white;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+            font-size: 1.2rem;
+        }
+
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+
+        .suggestion-item {
+            padding: 1rem;
+            border-bottom: 1px solid #f1f3f4;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .suggestion-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .suggestion-code {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 0.25rem;
+        }
+
+        .suggestion-description {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .suggestion-price {
+            color: #28a745;
+            font-weight: 600;
+            float: right;
+        }
+
+        .selected-parts-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        }
+
+        .selected-parts-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .selected-parts-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #f1f3f4;
+        }
+
+        .selected-parts-table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .quantity-input {
+            width: 80px;
+            padding: 0.5rem;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .remove-btn:hover {
+            background: #c82333;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102,126,234,0.3);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            display: none;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 CBS Order Request Form</h1>
+            <p>Submit your parts order with integrated parts selection</p>
+        </div>
+
+        <div class="form-container">
+            <form id="orderForm">
+                <div class="error-message" id="errorMessage"></div>
+                <div class="success-message" id="successMessage"></div>
+
+                <!-- Customer Information Section -->
+                <div class="form-section">
+                    <h3 class="section-title">👤 Customer Information</h3>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="buyerName">Customer Name <span class="required">*</span></label>
+                            <input type="text" id="buyerName" name="buyerName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="buyerEmail">Email Address <span class="required">*</span></label>
+                            <input type="email" id="buyerEmail" name="buyerEmail" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="buyerMobile">Mobile Number</label>
+                            <input type="tel" id="buyerMobile" name="buyerMobile">
+                        </div>
+                        <div class="form-group">
+                            <!-- Empty space for balanced layout -->
+                        </div>
+                    </div>
+
+                    <div class="form-row full-width">
+                        <div class="form-group">
+                            <label for="deliveryAddress">Delivery Address <span class="required">*</span></label>
+                            <textarea id="deliveryAddress" name="deliveryAddress" rows="3" required></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="requiredDate">Required By Date</label>
+                            <input type="date" id="requiredDate" name="requiredDate">
+                        </div>
+                        <div class="form-group">
+                            <label for="orderDate">Order Date</label>
+                            <input type="date" id="orderDate" name="orderDate">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Parts Selection Section -->
+                <div class="form-section">
+                    <h3 class="section-title">🔧 Parts Selection</h3>
+                    
+                    <div class="parts-selection">
+                        <div class="search-container">
+                            <div class="search-icon">🔍</div>
+                            <input 
+                                type="text" 
+                                class="search-input" 
+                                id="partsSearch" 
+                                placeholder="Search for parts by code or description..."
+                                autocomplete="off"
+                            >
+                            <div class="suggestions" id="partsSuggestions"></div>
+                        </div>
+
+                        <table class="selected-parts-table" id="selectedPartsTable">
+                            <thead>
+                                <tr>
+                                    <th>Product Code</th>
+                                    <th>Description</th>
+                                    <th>Unit Price (€)</th>
+                                    <th>Quantity</th>
+                                    <th>Line Total (€)</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="selectedPartsBody">
+                                <!-- Selected parts will be added here -->
+                            </tbody>
+                        </table>
+
+                        <div id="noPartsMessage" style="text-align: center; padding: 2rem; color: #6c757d;">
+                            No parts selected yet. Search and select parts above.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Information Section -->
+                <div class="form-section">
+                    <h3 class="section-title">📝 Additional Information</h3>
+                    
+                    <div class="form-row full-width">
+                        <div class="form-group">
+                            <label for="additionalNotes">Additional Notes</label>
+                            <textarea id="additionalNotes" name="additionalNotes" rows="4" 
+                                placeholder="Any special requirements, installation notes, or additional information..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="clearForm()">Clear Form</button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">Submit Order Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE_URL = window.CBS_CONFIG.api.partsSearch.replace('/api/parts/search', '');
+        
+        // State
+        let selectedParts = [];
+        let searchTimeout = null;
+
+        // Initialize form
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeForm();
+        });
+
+        function initializeForm() {
+            // Set default dates
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('orderDate').value = today;
+            
+            // Setup parts search
+            setupPartsSearch();
+            
+            // Setup form submission
+            document.getElementById('orderForm').addEventListener('submit', handleFormSubmit);
+            
+            updatePartsDisplay();
+        }
+
+        function setupPartsSearch() {
+            const searchInput = document.getElementById('partsSearch');
+            const suggestions = document.getElementById('partsSuggestions');
+
+            searchInput.addEventListener('input', function() {
+                const query = this.value.trim();
+                
+                if (searchTimeout) {
+                    clearTimeout(searchTimeout);
+                }
+
+                if (query.length < 2) {
+                    suggestions.style.display = 'none';
+                    return;
+                }
+
+                searchTimeout = setTimeout(() => {
+                    searchParts(query);
+                }, 300);
+            });
+
+            // Hide suggestions when clicking outside
+            document.addEventListener('click', function(event) {
+                if (!searchInput.contains(event.target) && !suggestions.contains(event.target)) {
+                    suggestions.style.display = 'none';
+                }
+            });
+        }
+
+        async function searchParts(query) {
+            const suggestions = document.getElementById('partsSuggestions');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/parts/search?query=${encodeURIComponent(query)}&limit=10`);
+                
+                if (!response.ok) {
+                    throw new Error('Search failed');
+                }
+
+                const data = await response.json();
+                displaySuggestions(data.parts);
+
+            } catch (error) {
+                console.error('Search failed:', error);
+                suggestions.innerHTML = '<div class="suggestion-item">Search unavailable - please try again</div>';
+                suggestions.style.display = 'block';
+            }
+        }
+
+        function displaySuggestions(parts) {
+            const suggestions = document.getElementById('partsSuggestions');
+            suggestions.innerHTML = '';
+
+            if (parts.length === 0) {
+                suggestions.innerHTML = '<div class="suggestion-item">No parts found</div>';
+            } else {
+                parts.forEach(part => {
+                    const item = document.createElement('div');
+                    item.className = 'suggestion-item';
+                    item.onclick = () => selectPart(part);
+                    
+                    const price = part.sales_price > 0 ? `€${part.sales_price.toFixed(2)}` : 'Price TBD';
+                    
+                    item.innerHTML = `
+                        <div class="suggestion-code">${part.product_code}</div>
+                        <div class="suggestion-description">${part.description}</div>
+                        <div class="suggestion-price">${price}</div>
+                    `;
+                    
+                    suggestions.appendChild(item);
+                });
+            }
+
+            suggestions.style.display = 'block';
+        }
+
+        function selectPart(part) {
+            // Check if part is already selected
+            if (selectedParts.find(p => p.product_code === part.product_code)) {
+                showError('Part already selected');
+                return;
+            }
+
+            // Add to selected parts
+            selectedParts.push({
+                ...part,
+                quantity: 1,
+                line_total: part.sales_price || 0
+            });
+
+            // Clear search
+            document.getElementById('partsSearch').value = '';
+            document.getElementById('partsSuggestions').style.display = 'none';
+
+            // Update display
+            updatePartsDisplay();
+            
+            showSuccess(`Added: ${part.product_code}`);
+        }
+
+        function updatePartsDisplay() {
+            const tbody = document.getElementById('selectedPartsBody');
+            const noPartsMessage = document.getElementById('noPartsMessage');
+            const table = document.getElementById('selectedPartsTable');
+
+            tbody.innerHTML = '';
+
+            if (selectedParts.length === 0) {
+                table.style.display = 'none';
+                noPartsMessage.style.display = 'block';
+                return;
+            }
+
+            table.style.display = 'table';
+            noPartsMessage.style.display = 'none';
+
+            selectedParts.forEach((part, index) => {
+                const row = document.createElement('tr');
+                const price = part.sales_price || 0;
+                const lineTotal = price * part.quantity;
+
+                row.innerHTML = `
+                    <td><strong>${part.product_code}</strong></td>
+                    <td>${part.description}</td>
+                    <td>€${price.toFixed(2)}</td>
+                    <td>
+                        <input 
+                            type="number" 
+                            class="quantity-input" 
+                            value="${part.quantity}" 
+                            min="1" 
+                            max="999"
+                            onchange="updateQuantity(${index}, this.value)"
+                        >
+                    </td>
+                    <td>€${lineTotal.toFixed(2)}</td>
+                    <td>
+                        <button class="remove-btn" onclick="removePart(${index})">Remove</button>
+                    </td>
+                `;
+
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateQuantity(index, newQuantity) {
+            const quantity = parseInt(newQuantity) || 1;
+            selectedParts[index].quantity = quantity;
+            selectedParts[index].line_total = (selectedParts[index].sales_price || 0) * quantity;
+            
+            updatePartsDisplay();
+        }
+
+        function removePart(index) {
+            selectedParts.splice(index, 1);
+            updatePartsDisplay();
+            showSuccess('Part removed');
+        }
+
+        async function handleFormSubmit(event) {
+            event.preventDefault();
+
+            if (selectedParts.length === 0) {
+                showError('Please select at least one part');
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+
+            try {
+                // Collect form data with proper field mapping
+                const formData = new FormData(event.target);
+                const formEntries = Object.fromEntries(formData.entries());
+                
+                // Map form fields to API expected names
+                const orderData = {
+                    customer_name: formEntries.buyerName,
+                    customer_email: formEntries.buyerEmail,
+                    customer_phone: formEntries.buyerMobile || '',
+                    customer_address: formEntries.deliveryAddress,
+                    order_date: formEntries.orderDate,
+                    required_by_date: formEntries.requiredDate,
+                    additional_notes: formEntries.additionalNotes || '',
+                    selected_parts: selectedParts
+                };
+
+                // Submit to Smartsheet
+                const result = await submitToSmartsheet(orderData);
+
+                console.log(`✅ Order submitted successfully!`);
+                console.log(`📋 Quote ID: ${result.quote_id}`);
+                console.log(`🔧 Parts Selected: ${result.parts_count}`);
+                console.log(`📊 Smartsheet Row: #${result.row_id}`);
+                console.log(`🔗 CBS Review Link: ${result.review_link}`);
+                
+                // Simple success message
+                showSuccess(`Order submitted! Quote ID: ${result.quote_id}`);
+                clearForm();
+
+            } catch (error) {
+                console.error('Full error object:', error);
+                let errorMessage = 'Failed to submit order: ';
+                
+                if (error.message) {
+                    errorMessage += error.message;
+                } else if (typeof error === 'string') {
+                    errorMessage += error;
+                } else {
+                    errorMessage += 'Network or server error';
+                }
+                
+                showError(errorMessage);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Order Request';
+            }
+        }
+
+        function generateQuoteId() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = (now.getMonth() + 1).toString().padStart(2, '0');
+            const day = now.getDate().toString().padStart(2, '0');
+            const time = now.toTimeString().slice(0, 8).replace(/:/g, '');
+            return `Q-${year}${month}${day}-${time}`;
+        }
+
+        function generateReviewLink(quoteId) {
+            const baseUrl = window.location.origin + window.location.pathname.replace('enhanced_order_form.html', '');
+            return `${baseUrl}parts_selection_interface.html?review_id=${quoteId}&mode=review`;
+        }
+
+        async function submitToSmartsheet(orderData) {
+            try {
+                const response = await fetch(window.CBS_CONFIG.api.submitOrder, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(orderData)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to submit order');
+                }
+
+                const result = await response.json();
+                console.log('Order submitted successfully:', result);
+                return result;
+
+            } catch (error) {
+                console.error('Submission error:', error);
+                throw error;
+            }
+        }
+
+        function clearForm() {
+            document.getElementById('orderForm').reset();
+            selectedParts = [];
+            updatePartsDisplay();
+            
+            // Reset dates
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('orderDate').value = today;
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+
+    <!-- Powered by Sheaney Footer -->
+    <footer style="margin-top: 40px; padding: 20px 0; border-top: 1px solid #e0e0e0; text-align: center; background-color: #f9f9f9;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 12px; font-family: Arial, sans-serif;">
+            <span style="color: #666; font-size: 14px; font-weight: 500;">Powered by</span>
+            <img src="logo/Sheaney Logo BLACK 1.png" alt="Sheaney" style="height: 32px; object-fit: contain;">
+
+        </div>
+        <div style="margin-top: 8px; color: #888; font-size: 12px;">
+            Business Automation Solutions
+        </div>
+    </footer>
+</body>
+</html>

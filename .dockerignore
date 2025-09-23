@@ -1,0 +1,56 @@
+# Git files
+.git
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+temp_files/
+*.tmp
+*.temp
+
+# Development files
+.env.local
+.env.development
+.env.test
+
+# Node modules (will be installed in container)
+cbs_pdf_generator/node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+cbs_pdf_generator/dist/
+cbs_pdf_generator/build/
+
+# Test files
+test_*
+*_test.py
+tests/
+
+# Backup files
+backup/
+*.backup
+*.bak
