@@ -1,34 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script>
-    // CBS Parts System - Auto-detecting Configuration
-    const isLive = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
-    const domain = isLive ? window.location.hostname : 'localhost';
-    const protocol = isLive ? window.location.protocol : 'http:';
-    const baseUrl = `${protocol}//${domain}`;
-    
-    window.CBS_CONFIG = {
-        "environment": isLive ? "production" : "development",
-        "domain": domain,
-        "baseUrl": baseUrl,
-        "api": {
-                "partsSearch": `${baseUrl}:8002/api/parts/search`,
-                "partsHealth": `${baseUrl}:8002/api/parts/health`,
-                "submitOrder": `${baseUrl}:8003/api/submit-order`,
-                "getOrder": `${baseUrl}:8003/api/order`,
-                "updateOrder": `${baseUrl}:8003/api/order`,
-                "generateQuotation": `${baseUrl}:8003/api/generate-quotation`,
-                "quotationTemplate": `${baseUrl}:8003/api/quotation-template`
-        },
-        "urls": {
-                "orderForm": `${baseUrl}/enhanced_order_form.html`,
-                "reviewInterface": `${baseUrl}/parts_review_interface.html`,
-                "quotationGenerator": `${baseUrl}:5173/`
-        }
-    };
-    console.log('CBS Production Config loaded for:', window.CBS_CONFIG.domain);
-</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CBS Enhanced Order Form</title>
@@ -450,7 +422,7 @@
 
     <script>
         // Configuration
-        const API_BASE_URL = window.CBS_CONFIG.api.partsSearch.replace('/api/parts/search', '');
+        const API_BASE_URL = 'http://localhost:8002';
         
         // State
         let selectedParts = [];
@@ -508,7 +480,7 @@
             const suggestions = document.getElementById('partsSuggestions');
 
             try {
-                const response = await fetch(`${API_BASE_URL}/api/parts/search?query=${encodeURIComponent(query)}&limit=10`);
+                const response = await fetch(`${API_BASE_URL}/api/parts/search?q=${encodeURIComponent(query)}&limit=10`);
                 
                 if (!response.ok) {
                     throw new Error('Search failed');
@@ -647,48 +619,39 @@
             submitBtn.textContent = 'Submitting...';
 
             try {
-                // Collect form data with proper field mapping
+                // Collect form data
                 const formData = new FormData(event.target);
-                const formEntries = Object.fromEntries(formData.entries());
+                const orderData = Object.fromEntries(formData.entries());
                 
-                // Map form fields to API expected names
-                const orderData = {
-                    customer_name: formEntries.buyerName,
-                    customer_email: formEntries.buyerEmail,
-                    customer_phone: formEntries.buyerMobile || '',
-                    customer_address: formEntries.deliveryAddress,
-                    order_date: formEntries.orderDate,
-                    required_by_date: formEntries.requiredDate,
-                    additional_notes: formEntries.additionalNotes || '',
-                    selected_parts: selectedParts
-                };
+                // Add selected parts
+                orderData.selectedParts = selectedParts;
+                orderData.partsCount = selectedParts.length;
+                orderData.partsReviewStatus = 'Pending';
+                
+                // Generate quote ID
+                orderData.quoteId = generateQuoteId();
+                
+                // Generate review link
+                orderData.partsReviewLink = generateReviewLink(orderData.quoteId);
 
                 // Submit to Smartsheet
                 const result = await submitToSmartsheet(orderData);
 
-                console.log(`✅ Order submitted successfully!`);
-                console.log(`📋 Quote ID: ${result.quote_id}`);
-                console.log(`🔧 Parts Selected: ${result.parts_count}`);
-                console.log(`📊 Smartsheet Row: #${result.row_id}`);
-                console.log(`🔗 CBS Review Link: ${result.review_link}`);
+                const successMessage = `✅ Order submitted successfully!
                 
-                // Simple success message
-                showSuccess(`Order submitted! Quote ID: ${result.quote_id}`);
+📋 Quote ID: ${result.quote_id}
+🔧 Parts Selected: ${result.parts_count}
+📊 Smartsheet Row: #${result.row_id}
+
+🔗 CBS Review Link: ${result.review_link}
+
+CBS team can now review your parts, set prices, and generate your quotation.`;
+
+                showSuccess(successMessage);
                 clearForm();
 
             } catch (error) {
-                console.error('Full error object:', error);
-                let errorMessage = 'Failed to submit order: ';
-                
-                if (error.message) {
-                    errorMessage += error.message;
-                } else if (typeof error === 'string') {
-                    errorMessage += error;
-                } else {
-                    errorMessage += 'Network or server error';
-                }
-                
-                showError(errorMessage);
+                showError('Failed to submit order: ' + error.message);
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Submit Order Request';
@@ -711,7 +674,7 @@
 
         async function submitToSmartsheet(orderData) {
             try {
-                const response = await fetch(window.CBS_CONFIG.api.submitOrder, {
+                const response = await fetch('http://localhost:8003/api/submit-order', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -764,17 +727,5 @@
             }, 3000);
         }
     </script>
-
-    <!-- Powered by Sheaney Footer -->
-    <footer style="margin-top: 40px; padding: 20px 0; border-top: 1px solid #e0e0e0; text-align: center; background-color: #f9f9f9;">
-        <div style="display: flex; align-items: center; justify-content: center; gap: 12px; font-family: Arial, sans-serif;">
-            <span style="color: #666; font-size: 14px; font-weight: 500;">Powered by</span>
-            <img src="logo/Sheaney Logo BLACK 1.png" alt="Sheaney" style="height: 32px; object-fit: contain;">
-
-        </div>
-        <div style="margin-top: 8px; color: #888; font-size: 12px;">
-            Business Automation Solutions
-        </div>
-    </footer>
 </body>
 </html>

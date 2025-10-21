@@ -10,7 +10,7 @@ INSTANCE_NAME="cbs-parts-system"
 ZONE="us-central1-a"
 MACHINE_TYPE="e2-medium"
 CONTAINER_IMAGE="cbsparts/cbs-system:latest"
-DOMAIN="your-domain.com"  # Change this to your domain
+DOMAIN="34.10.76.247"  # Current GCP VM IP
 
 echo "📋 Deployment Configuration:"
 echo "   Project: $PROJECT_ID"
@@ -72,7 +72,7 @@ sudo docker run -d \
     -p 5173:5173 \
     -p 8002:8002 \
     -p 8003:8003 \
-    -e DOMAIN=your-domain.com \
+    -e DOMAIN=34.10.76.247 \
     $CONTAINER_IMAGE
 
 # Check status
@@ -82,9 +82,10 @@ sudo docker ps | grep cbs-parts-system
 
 echo ""
 echo "🌐 Your CBS Parts System is now live at:"
-echo "   Order Form: http://your-domain.com/enhanced_order_form.html"
-echo "   Parts API: http://your-domain.com:8002/api/parts/search"
-echo "   Quotation Generator: http://your-domain.com:5173/"
+echo "   Review Interface: http://34.10.76.247/parts_review_interface.html"
+echo "   Parts API: http://34.10.76.247:8002/api/parts/search"
+echo "   Quotation Generator: http://34.10.76.247:5173/"
+echo "   🔄 Smartsheet Polling: Every 1 minute (background service)"
 echo ""
 echo "🔧 To check logs:"
 echo "   sudo docker logs cbs-parts-system"

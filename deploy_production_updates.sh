@@ -37,7 +37,7 @@ if [ $? -eq 0 ]; then
             gcloud compute ssh cbs-parts-system --command='
                 sudo docker stop cbs-parts-system 2>/dev/null || true
                 sudo docker rm cbs-parts-system 2>/dev/null || true
-                sudo docker load < cbs-system-production-v2.tar.gz
+                sudo docker load < cbs-system-production-v3.tar.gz
                 sudo docker run -d --name cbs-parts-system --restart unless-stopped -p 80:8000 -p 5173:5173 -p 8002:8002 -p 8003:8003 cbsparts/cbs-system:production-v2
                 sleep 5
                 sudo docker ps | grep cbs-parts-system

@@ -21,7 +21,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('/app/logs/form_api.log'),
+        logging.FileHandler('logs/form_api.log'),
         logging.StreamHandler()
     ]
 )
@@ -532,3 +532,41 @@ if __name__ == "__main__":
         limit_concurrency=100,
         timeout_keep_alive=30
     )
+
+# Webhook endpoint for Smartsheet form submissions
+@app.post("/api/smartsheet-webhook")
+async def smartsheet_webhook(webhook_data: dict):
+    """Handle webhook from Smartsheet form submission"""
+    try:
+        logger.info(f"Received Smartsheet webhook: {webhook_data}")
+        
+        # Extract data from Smartsheet webhook
+        # Note: Smartsheet webhook format may vary, adjust as needed
+        customer_name = webhook_data.get('Buyer\'s Name', '')
+        customer_email = webhook_data.get('Buyer\'s Email Address', '')
+        customer_phone = webhook_data.get('Buyer\'s Mobile No.', '')
+        customer_address = webhook_data.get('Delivery Address', '')
+        order_date = webhook_data.get('Order Date', '')
+        required_date = webhook_data.get('Required-By Date', '')
+        additional_notes = webhook_data.get('Additional Notes', '')
+        quote_id = webhook_data.get('Quote ID', '')
+        
+        # Generate review link
+        domain = os.getenv('DOMAIN', '34.10.76.247')
+        protocol = 'http'
+        review_link = f"{protocol}://{domain}/enhanced_smartsheet_review.html?quote_id={quote_id}"
+        
+        logger.info(f"Generated review link: {review_link}")
+        
+        return {
+            "success": True,
+            "message": "Webhook processed successfully",
+            "quote_id": quote_id,
+            "review_link": review_link,
+            "customer_name": customer_name,
+            "customer_email": customer_email
+        }
+        
+    except Exception as e:
+        logger.error(f"Webhook processing failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Webhook processing failed: {str(e)}")

@@ -4,7 +4,13 @@ import socketserver
 import os
 import socket
 
-os.chdir('/app/templates')
+# Change to templates directory (works both locally and in Docker)
+import sys
+import os
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+templates_dir = os.path.join(project_root, 'templates')
+os.chdir(templates_dir)
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
@@ -21,6 +27,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b'CBS Web Server OK - Mobile Ready')
             return
+        
+        # Serve enhanced_smartsheet_review.html as the default page
+        if self.path == '/' or self.path == '/index.html':
+            self.path = '/enhanced_smartsheet_review.html'
+        
         super().do_GET()
 
 class MobileCompatibleTCPServer(socketserver.TCPServer):

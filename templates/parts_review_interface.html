@@ -15,14 +15,12 @@
         "api": {
                 "partsSearch": `${baseUrl}:8002/api/parts/search`,
                 "partsHealth": `${baseUrl}:8002/api/parts/health`,
-                "submitOrder": `${baseUrl}:8003/api/submit-order`,
                 "getOrder": `${baseUrl}:8003/api/order`,
                 "updateOrder": `${baseUrl}:8003/api/order`,
                 "generateQuotation": `${baseUrl}:8003/api/generate-quotation`,
                 "quotationTemplate": `${baseUrl}:8003/api/quotation-template`
         },
         "urls": {
-                "orderForm": `${baseUrl}/enhanced_order_form.html`,
                 "reviewInterface": `${baseUrl}/parts_review_interface.html`,
                 "quotationGenerator": `${baseUrl}:5173/`
         }
@@ -411,9 +409,55 @@
                     </div>
                 </div>
 
+                <!-- Parts Search & Management -->
+                <div class="parts-section">
+                    <h3>🔧 Parts Management</h3>
+                    
+                    <!-- Parts Search -->
+                    <div class="search-section" style="margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                        <h4 style="margin-bottom: 15px; color: #2c3e50;">🔍 Search Parts</h4>
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <input type="text" id="partsSearchInput" placeholder="Search by part code or description..." 
+                                   style="flex: 1; min-width: 300px; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px;">
+                            <button onclick="searchParts()" style="padding: 12px 20px; background: #3498db; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                                Search
+                            </button>
+                            <button onclick="clearSearch()" style="padding: 12px 20px; background: #95a5a6; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                                Clear
+                            </button>
+                        </div>
+                        
+                        <!-- Search Results -->
+                        <div id="searchResults" style="margin-top: 15px; display: none;">
+                            <h5 style="margin-bottom: 10px; color: #2c3e50;">Search Results:</h5>
+                            <div id="searchResultsList" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; background: white;">
+                                <!-- Search results will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Manual Parts Entry -->
+                    <div class="manual-entry-section" style="margin-bottom: 20px; padding: 20px; background: #e8f5e8; border-radius: 10px;">
+                        <h4 style="margin-bottom: 15px; color: #2c3e50;">➕ Add Part Manually</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 2fr 100px 100px auto; gap: 10px; align-items: center;">
+                            <input type="text" id="manualPartCode" placeholder="Part Code" 
+                                   style="padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                            <input type="text" id="manualPartDesc" placeholder="Description" 
+                                   style="padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                            <input type="number" id="manualPartQty" placeholder="Qty" value="1" min="1"
+                                   style="padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                            <input type="number" id="manualPartPrice" placeholder="Price" step="0.01" min="0"
+                                   style="padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                            <button onclick="addManualPart()" style="padding: 10px 15px; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                                Add Part
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Selected Parts -->
                 <div class="parts-section">
-                    <h3>🔧 Selected Parts & Pricing</h3>
+                    <h3>📋 Selected Parts & Pricing</h3>
                     
                     <table class="parts-table">
                         <thead>
@@ -901,7 +945,7 @@ Cancel = Download quotation data as JSON file`);
                         URL.revokeObjectURL(url);
                         
                         console.log('Quotation data downloaded! You can import this into your quotation generator.');
-                    }
+                }
                 
             } catch (error) {
                 showError('Error opening quotation generator: ' + error.message);
@@ -915,6 +959,140 @@ Cancel = Download quotation data as JSON file`);
             document.getElementById('error').style.display = 'block';
             document.getElementById('error').textContent = message;
         }
+
+        // Parts Search Functionality
+        async function searchParts() {
+            const query = document.getElementById('partsSearchInput').value.trim();
+            if (!query || query.length < 2) {
+                alert('Please enter at least 2 characters to search');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${window.CBS_CONFIG.api.partsSearch}?query=${encodeURIComponent(query)}`);
+                if (!response.ok) {
+                    throw new Error('Search failed');
+                }
+
+                const data = await response.json();
+                displaySearchResults(data.parts || []);
+            } catch (error) {
+                console.error('Parts search error:', error);
+                alert('Search failed. Please try again.');
+            }
+        }
+
+        function displaySearchResults(parts) {
+            const resultsDiv = document.getElementById('searchResults');
+            const resultsList = document.getElementById('searchResultsList');
+            
+            if (parts.length === 0) {
+                resultsDiv.style.display = 'block';
+                resultsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No parts found</div>';
+                return;
+            }
+
+            resultsDiv.style.display = 'block';
+            resultsList.innerHTML = parts.map(part => `
+                <div style="padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; transition: background-color 0.2s;" 
+                     onmouseover="this.style.backgroundColor='#f0f0f0'" 
+                     onmouseout="this.style.backgroundColor='white'"
+                     onclick="addPartFromSearch('${part.product_code}', '${part.description.replace(/'/g, "\\'")}', ${part.sales_price || 0})">
+                    <div style="display: flex; justify-content: between; align-items: center;">
+                        <div style="flex: 1;">
+                            <strong style="color: #2c3e50;">${part.product_code}</strong>
+                            <div style="color: #666; margin-top: 4px;">${part.description}</div>
+                        </div>
+                        <div style="color: #27ae60; font-weight: 600;">
+                            €${(part.sales_price || 0).toFixed(2)}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addPartFromSearch(code, description, price) {
+            // Add the part to the order
+            const newPart = {
+                product_code: code,
+                description: description,
+                quantity: 1,
+                sales_price: price,
+                line_total: price
+            };
+
+            if (!orderData.selectedParts) {
+                orderData.selectedParts = [];
+            }
+
+            orderData.selectedParts.push(newPart);
+            populatePartsTable();
+            calculateTotals();
+            clearSearch();
+            
+            // Show success message
+            console.log(`✅ Added part: ${code} - ${description}`);
+        }
+
+        function clearSearch() {
+            document.getElementById('partsSearchInput').value = '';
+            document.getElementById('searchResults').style.display = 'none';
+        }
+
+        // Manual Parts Entry
+        function addManualPart() {
+            const code = document.getElementById('manualPartCode').value.trim();
+            const description = document.getElementById('manualPartDesc').value.trim();
+            const quantity = parseInt(document.getElementById('manualPartQty').value) || 1;
+            const price = parseFloat(document.getElementById('manualPartPrice').value) || 0;
+
+            if (!code) {
+                alert('Please enter a part code');
+                return;
+            }
+
+            if (!description) {
+                alert('Please enter a description');
+                return;
+            }
+
+            // Add the part to the order
+            const newPart = {
+                product_code: code,
+                description: description,
+                quantity: quantity,
+                sales_price: price,
+                line_total: quantity * price
+            };
+
+            if (!orderData.selectedParts) {
+                orderData.selectedParts = [];
+            }
+
+            orderData.selectedParts.push(newPart);
+            populatePartsTable();
+            calculateTotals();
+            
+            // Clear the form
+            document.getElementById('manualPartCode').value = '';
+            document.getElementById('manualPartDesc').value = '';
+            document.getElementById('manualPartQty').value = '1';
+            document.getElementById('manualPartPrice').value = '';
+            
+            console.log(`✅ Added manual part: ${code} - ${description}`);
+        }
+
+        // Add Enter key support for search
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('partsSearchInput');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function(event) {
+                    if (event.key === 'Enter') {
+                        searchParts();
+                    }
+                });
+            }
+        });
     </script>
 
     <!-- Powered by Sheaney Footer -->

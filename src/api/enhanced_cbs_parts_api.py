@@ -18,7 +18,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('/app/logs/parts_api.log'),
+        logging.FileHandler('logs/parts_api.log'),
         logging.StreamHandler()
     ]
 )
@@ -154,11 +154,11 @@ async def search_parts(query: str = "", limit: int = 50):
         # Sanitize query
         query = query.strip()[:100]  # Limit query length
         
-        from src.services.lightweight_cbs_parts_service import CBSPartsService
+        from src.services.sqlite_parts_service import sqlite_parts_service
         
-        service = CBSPartsService()
+        # Use SQLite for fast search
         parts = await asyncio.get_event_loop().run_in_executor(
-            None, service.search_parts, query, limit
+            None, sqlite_parts_service.search_parts, query, limit
         )
         
         logger.info(f"Parts search: '{query}' returned {len(parts)} results")
@@ -176,6 +176,58 @@ async def search_parts(query: str = "", limit: int = 50):
         raise HTTPException(
             status_code=500, 
             detail=f"Search failed: {str(e)}"
+        )
+
+@app.get("/api/parts/stats")
+async def get_parts_stats():
+    """Get SQLite database statistics"""
+    try:
+        from src.services.sqlite_parts_service import sqlite_parts_service
+        
+        stats = sqlite_parts_service.get_stats()
+        
+        return {
+            "status": "success",
+            "stats": stats,
+            "timestamp": time.time()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get parts stats: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get stats: {str(e)}"
+        )
+
+@app.post("/api/parts/sync")
+async def sync_parts_database():
+    """Manually trigger sync with Smartsheet"""
+    try:
+        from src.services.sqlite_parts_service import sqlite_parts_service
+        
+        logger.info("Manual sync triggered")
+        success = await sqlite_parts_service.sync_with_smartsheet()
+        
+        if success:
+            stats = sqlite_parts_service.get_stats()
+            return {
+                "status": "success",
+                "message": "Parts database synced successfully",
+                "stats": stats,
+                "timestamp": time.time()
+            }
+        else:
+            return {
+                "status": "failed",
+                "message": "Sync failed - check logs for details",
+                "timestamp": time.time()
+            }
+        
+    except Exception as e:
+        logger.error(f"Manual sync failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Sync failed: {str(e)}"
         )
 
 @app.get("/api/parts/discounts/{customer_email}")
