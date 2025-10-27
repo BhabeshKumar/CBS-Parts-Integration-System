@@ -40,11 +40,15 @@ async function createServer() {
 
       // Use Puppeteer to render
       const puppeteer = await import('puppeteer')
-      const browser = await puppeteer.launch({ headless: 'new' as any })
+      const browser = await puppeteer.launch({ 
+        headless: 'new' as any,
+        executablePath: '/usr/bin/chromium-browser',
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      })
       const page = await browser.newPage()
 
       // Build local URL; assumes app is served by this same Express + Vite on localhost:5173 equivalently
-      const origin = `http://localhost:5173` // in production, replace with your base URL
+      const origin = `http://${process.env.CBS_DOMAIN || 'localhost'}:5173` // Dynamic domain for production
       const url = `${origin}/print?data=${encoded}`
       await page.goto(url, { waitUntil: 'networkidle0' })
       const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' } })

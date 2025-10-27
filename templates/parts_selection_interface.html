@@ -422,7 +422,9 @@
 
     <script>
         // Configuration
-        const API_BASE_URL = 'http://localhost:8002';
+        const API_BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:8002' 
+            : `http://${window.location.hostname}:8002`;
         
         // State
         let selectedParts = [];

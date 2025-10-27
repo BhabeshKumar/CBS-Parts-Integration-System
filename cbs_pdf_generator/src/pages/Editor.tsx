@@ -99,6 +99,66 @@ export default function Editor() {
   const initialData = getInitialData()
   const { form, update, updateItem, addItem, removeItem, subtotal, tax, grand } = useQuotationState(initialData)
   const [view, setView] = useState<'edit' | 'preview'>('edit')
+  
+  // Email functionality state
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
+  const [emailAddress, setEmailAddress] = useState(form.customer.email || '')
+  const [isSendingEmail, setIsSendingEmail] = useState(false)
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [emailMessage, setEmailMessage] = useState('')
+  
+  // Account Ref No visibility toggle
+  const [showAccountRef, setShowAccountRef] = useState(!!form.meta.accountRefNo)
+
+  // Email functionality
+  const handleSendEmail = async () => {
+    if (!emailAddress) {
+      setEmailStatus('error')
+      setEmailMessage('Please enter a valid email address')
+      return
+    }
+
+    setIsSendingEmail(true)
+    setEmailStatus('idle')
+    setEmailMessage('')
+
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8003';
+      const response = await fetch(`${API_BASE_URL}/api/email/send-quotation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          quotation_data: form,
+          customer_email: emailAddress
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setEmailStatus('success')
+        setEmailMessage(`Email sent successfully to ${emailAddress}`)
+        setIsEmailModalOpen(false)
+      } else {
+        setEmailStatus('error')
+        setEmailMessage(result.detail || 'Failed to send email')
+      }
+    } catch (error) {
+      setEmailStatus('error')
+      setEmailMessage('Failed to connect to email service')
+    } finally {
+      setIsSendingEmail(false)
+    }
+  }
+
+  const openEmailModal = () => {
+    setEmailAddress(form.customer.email || '')
+    setEmailStatus('idle')
+    setEmailMessage('')
+    setIsEmailModalOpen(true)
+  }
 
   return (
     <div className="min-h-screen bg-neutral-100">
@@ -111,6 +171,7 @@ export default function Editor() {
               <button className="px-3 py-2 rounded bg-neutral-200 hover:bg-neutral-300" onClick={() => setView('edit')}>Edit</button>
               <button className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700" onClick={() => setView('preview')}>Preview</button>
               <button className="px-3 py-2 rounded bg-green-600 text-white hover:bg-green-700" onClick={() => window.print()}>Print</button>
+              <button className="px-3 py-2 rounded bg-purple-600 text-white hover:bg-purple-700" onClick={openEmailModal}>📧 Email</button>
             </div>
           </div>
 
@@ -142,6 +203,23 @@ export default function Editor() {
                 <span className="text-sm font-medium">Carriage</span>
                 <input type="number" className="mt-1 input" value={form.carriage ?? 0}
                   onChange={(e) => update('carriage', Number(e.target.value))} />
+              </label>
+              <label className="block">
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" checked={showAccountRef} 
+                    onChange={(e) => {
+                      setShowAccountRef(e.target.checked)
+                      if (!e.target.checked) {
+                        update('meta', { ...form.meta, accountRefNo: '' })
+                      }
+                    }} />
+                  <span className="text-sm font-medium">Show Account Ref. No.</span>
+                </div>
+                {showAccountRef && (
+                  <input className="mt-1 input" placeholder="Account Reference Number" 
+                    value={form.meta.accountRefNo ?? ''} 
+                    onChange={(e) => update('meta', { ...form.meta, accountRefNo: e.target.value })} />
+                )}
               </label>
             </div>
 
@@ -222,6 +300,53 @@ export default function Editor() {
           <Quotation data={form} />
         </div>
       </div>
+
+      {/* Email Modal */}
+      {isEmailModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Send Quotation Email</h3>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Customer Email Address</label>
+              <input
+                type="email"
+                value={emailAddress}
+                onChange={(e) => setEmailAddress(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="sales@concretebatchingsystems.com"
+              />
+            </div>
+
+            {emailMessage && (
+              <div className={`mb-4 p-3 rounded-md ${
+                emailStatus === 'success' ? 'bg-green-100 text-green-700' : 
+                emailStatus === 'error' ? 'bg-red-100 text-red-700' : 
+                'bg-blue-100 text-blue-700'
+              }`}>
+                {emailMessage}
+              </div>
+            )}
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setIsEmailModalOpen(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                disabled={isSendingEmail}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendEmail}
+                disabled={isSendingEmail || !emailAddress}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSendingEmail ? 'Sending...' : 'Send Email'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

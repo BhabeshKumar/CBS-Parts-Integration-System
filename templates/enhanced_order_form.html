@@ -422,7 +422,9 @@
 
     <script>
         // Configuration
-        const API_BASE_URL = 'http://localhost:8002';
+        const API_BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:8002' 
+            : `http://${window.location.hostname}:8002`;
         
         // State
         let selectedParts = [];
@@ -674,7 +676,7 @@ CBS team can now review your parts, set prices, and generate your quotation.`;
 
         async function submitToSmartsheet(orderData) {
             try {
-                const response = await fetch('http://localhost:8003/api/submit-order', {
+                const response = await fetch(`${API_BASE_URL.replace(':8002', ':8003')}/api/submit-order`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

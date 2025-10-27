@@ -15,6 +15,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, validator
 import uvicorn
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+from email.mime.image import MIMEImage
+import urllib.parse
+from datetime import datetime
+import requests
 
 # Configure logging
 logging.basicConfig(
@@ -70,6 +78,11 @@ class OrderUpdateRequest(BaseModel):
     pricing_updates: Optional[Dict[str, Any]] = None
     discount_percentage: Optional[float] = None
     additional_notes: Optional[str] = None
+
+class QuotationEmailRequest(BaseModel):
+    """Request model for sending quotation emails"""
+    quotation_data: Dict[str, Any]
+    customer_email: EmailStr
 
 # Global exception handler
 @app.exception_handler(Exception)
@@ -213,7 +226,7 @@ async def submit_order(order_data: OrderSubmissionRequest):
                 row_data["Additional Notes"] = parts_text
         
         # Generate review link
-        domain = os.getenv('DOMAIN', '34.10.76.247')  # Default to live domain
+        domain = os.getenv('CBS_DOMAIN', 'localhost')  # Default to localhost for development
         protocol = 'http'  # Use HTTP for GCP deployment
         port = ''  # No port needed for production
         review_link = f"{protocol}://{domain}/parts_review_interface.html?quote_id={quote_id}"
@@ -552,7 +565,7 @@ async def smartsheet_webhook(webhook_data: dict):
         quote_id = webhook_data.get('Quote ID', '')
         
         # Generate review link
-        domain = os.getenv('DOMAIN', '34.10.76.247')
+        domain = os.getenv('CBS_DOMAIN', 'localhost')
         protocol = 'http'
         review_link = f"{protocol}://{domain}/enhanced_smartsheet_review.html?quote_id={quote_id}"
         
@@ -570,3 +583,422 @@ async def smartsheet_webhook(webhook_data: dict):
     except Exception as e:
         logger.error(f"Webhook processing failed: {e}")
         raise HTTPException(status_code=500, detail=f"Webhook processing failed: {str(e)}")
+
+# Email functionality
+def generate_acceptance_link(quotation_data: Dict[str, Any]) -> str:
+    """Generate Smartsheet acceptance link with auto-populated data"""
+    base_url = "https://app.smartsheet.com/b/form/0198be05b2ce78a2995a10328e1d92fb"
+    
+    params = {
+        "Quote Reference No.": quotation_data.get('meta', {}).get('quotationNo', ''),
+        "Buyer's Name": quotation_data.get('customer', {}).get('name', ''),
+        "Your Accounts Email Address": quotation_data.get('customer', {}).get('email', '')
+    }
+    
+    # URL encode parameters
+    encoded_params = []
+    for key, value in params.items():
+        encoded_key = urllib.parse.quote(key)
+        encoded_value = urllib.parse.quote(str(value))
+        encoded_params.append(f'{encoded_key}={encoded_value}')
+    
+    return f"{base_url}?{'&'.join(encoded_params)}"
+
+def create_email_template(quotation_data: Dict[str, Any], acceptance_link: str) -> str:
+    """Create HTML email template for quotation"""
+    customer_name = quotation_data.get('customer', {}).get('name', 'Valued Customer')
+    quotation_no = quotation_data.get('meta', {}).get('quotationNo', '')
+    company_name = os.getenv('COMPANY_NAME', 'Concrete Batching Systems')
+    
+    # Calculate totals
+    items = quotation_data.get('items', [])
+    subtotal = sum(item.get('quantity', 0) * item.get('unitPrice', 0) for item in items)
+    tax_rate = quotation_data.get('taxRatePercent', 23)
+    tax_amount = subtotal * (tax_rate / 100)
+    carriage = quotation_data.get('carriage', 0)
+    grand_total = subtotal + tax_amount + carriage
+    
+    html_template = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Quotation from {company_name}</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+            }}
+            .header {{
+                text-align: center;
+                padding: 20px 0;
+                border-bottom: 2px solid #e0e0e0;
+                margin-bottom: 20px;
+            }}
+            .header img {{
+                max-width: 200px;
+                height: auto;
+                margin-bottom: 15px;
+            }}
+            .header h2 {{
+                margin: 5px 0 0 0;
+                font-size: 18px;
+                color: #2c3e50;
+                font-weight: normal;
+            }}
+            .content {{
+                padding: 0;
+            }}
+            .quotation-summary {{
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                margin: 20px 0;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }}
+            .acceptance-button {{
+                display: inline-block;
+                background: #00b3ff;
+                color: #ffffff;
+                padding: 15px 30px;
+                text-decoration: none;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 18px;
+                margin: 20px 0;
+                text-align: center;
+                border: 2px solid #0099e6;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            }}
+            .acceptance-button:hover {{
+                background: #0099e6;
+                color: #ffffff;
+                text-decoration: none;
+            }}
+            .terms {{
+                background: #e9ecef;
+                padding: 15px;
+                border-radius: 8px;
+                margin: 20px 0;
+            }}
+            .footer {{
+                text-align: center;
+                margin-top: 30px;
+                color: #6c757d;
+                font-size: 14px;
+            }}
+            .item-row {{
+                display: flex;
+                justify-content: space-between;
+                padding: 8px 0;
+                border-bottom: 1px solid #eee;
+            }}
+            .total-row {{
+                font-weight: bold;
+                background: #f8f9fa;
+                padding: 10px;
+                border-radius: 4px;
+                margin-top: 10px;
+            }}
+        </style>
+    </head>
+    <body>
+            <div class="header">
+                <img src="cid:cbs_logo" alt="{company_name}">
+                <h2>Sales Quotation</h2>
+            </div>
+        
+        <div class="content">
+            <p>Dear {customer_name},</p>
+            
+            <p>Thank you so much for choosing us for your order. Attached you'll find the quotation tied to your order with the reference number <strong>{quotation_no}</strong> for you to review at your convenience.</p>
+            
+            <div class="quotation-summary">
+                <h3>Quotation Summary</h3>
+                <div class="item-row">
+                    <span>Quotation Number:</span>
+                    <span>{quotation_no}</span>
+                </div>
+                <div class="item-row">
+                    <span>Date:</span>
+                    <span>{datetime.now().strftime('%B %d, %Y')}</span>
+                </div>
+                <div class="item-row">
+                    <span>Subtotal:</span>
+                    <span>€{subtotal:,.2f}</span>
+                </div>
+                <div class="item-row">
+                    <span>Tax ({tax_rate}%):</span>
+                    <span>€{tax_amount:,.2f}</span>
+                </div>
+                <div class="item-row">
+                    <span>Carriage:</span>
+                    <span>€{carriage:,.2f}</span>
+                </div>
+                <div class="total-row">
+                    <span>Total:</span>
+                    <span>€{grand_total:,.2f}</span>
+                </div>
+            </div>
+            
+            <div style="text-align: center;">
+                <a href="{acceptance_link}" class="acceptance-button">
+                    ACCEPT QUOTATION
+                </a>
+            </div>
+            
+            <p>Please click the "ACCEPT QUOTATION" button above to proceed with your order.</p>
+            
+            <p>If you have any questions about this quotation, please don't hesitate to contact us.</p>
+            
+            <p>Best regards,<br>
+            <strong>{company_name}</strong><br>
+            Email: sales@concretebatchingsystems.com</p>
+        </div>
+        
+        <div class="footer">
+            <p>This email was sent automatically from the {company_name} quotation system.</p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html_template
+
+def generate_quotation_pdf(quotation_data: Dict[str, Any]) -> bytes:
+    """Generate PDF for quotation using the PDF generator service"""
+    try:
+        # Call the PDF generator API
+        pdf_api_url = f"http://{os.getenv('CBS_DOMAIN', 'localhost')}:5173/api/quote/pdf"
+        
+        logger.info(f"Generating PDF for quotation {quotation_data.get('meta', {}).get('quotationNo', '')}")
+        
+        response = requests.post(
+            pdf_api_url,
+            json=quotation_data,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            logger.info("PDF generated successfully")
+            return response.content
+        else:
+            logger.error(f"PDF generation failed with status {response.status_code}: {response.text}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Failed to generate PDF: {e}")
+        return None
+
+def send_quotation_email(quotation_data: Dict[str, Any], customer_email: str) -> Dict[str, Any]:
+    """Send quotation email with PDF attachment and acceptance link"""
+    
+    smtp_host = os.getenv('EMAIL_SMTP_HOST', 'smtp.gmail.com')
+    smtp_port = int(os.getenv('EMAIL_SMTP_PORT', '587'))
+    email_username = os.getenv('EMAIL_USERNAME')
+    email_password = os.getenv('EMAIL_PASSWORD')
+    company_name = os.getenv('COMPANY_NAME', 'Concrete Batching Systems')
+    
+    if not email_username or not email_password:
+        return {
+            "success": False,
+            "error": "Email credentials not configured"
+        }
+    
+    try:
+        # Generate PDF
+        pdf_data = generate_quotation_pdf(quotation_data)
+        if not pdf_data:
+            return {
+                "success": False,
+                "error": "Failed to generate PDF"
+            }
+        
+        # Generate acceptance link
+        acceptance_link = generate_acceptance_link(quotation_data)
+        
+        # Create email content
+        html_content = create_email_template(quotation_data, acceptance_link)
+        
+        # Create message
+        msg = MIMEMultipart('related')
+        msg['From'] = f"{company_name} <{email_username}>"
+        msg['To'] = customer_email
+        msg['Subject'] = f"Quotation {quotation_data.get('meta', {}).get('quotationNo', '')} - {company_name}"
+        
+        # Create alternative container for HTML content
+        msg_alternative = MIMEMultipart('alternative')
+        msg.attach(msg_alternative)
+        
+        # Add text version (fallback)
+        text_content = f"""
+Dear {quotation_data.get('customer', {}).get('name', 'Valued Customer')},
+
+Thank you so much for choosing us for your order. Attached you'll find the quotation tied to your order with the reference number {quotation_data.get('meta', {}).get('quotationNo', '')} for you to review at your convenience.
+
+Please click the acceptance link below to proceed with your order:
+{acceptance_link}
+
+If you have any questions about this quotation, please don't hesitate to contact us.
+
+Best regards,
+{company_name}
+Email: sales@concretebatchingsystems.com
+        """
+        text_part = MIMEText(text_content, 'plain')
+        msg_alternative.attach(text_part)
+        
+        # Add HTML content
+        html_part = MIMEText(html_content, 'html')
+        msg_alternative.attach(html_part)
+        
+        # Attach CBS logo as embedded image
+        try:
+            logo_path = os.path.join('/app', 'logo', 'cbs_logo.png')
+            logger.info(f"Looking for logo at: {logo_path}")
+            
+            if os.path.exists(logo_path):
+                with open(logo_path, 'rb') as logo_file:
+                    logo_data = logo_file.read()
+                logo_attachment = MIMEImage(logo_data)
+                logo_attachment.add_header('Content-ID', '<cbs_logo>')
+                logo_attachment.add_header('Content-Disposition', 'inline', filename='cbs_logo.png')
+                msg.attach(logo_attachment)
+                logger.info(f"CBS logo attached successfully ({len(logo_data)} bytes)")
+            else:
+                logger.warning(f"CBS logo not found at {logo_path}")
+                # Try alternative path
+                alt_logo_path = "/Users/bhabeshmohanty/Automation/CBS_Parts_System_Production/logo/cbs_logo.png"
+                if os.path.exists(alt_logo_path):
+                    with open(alt_logo_path, 'rb') as logo_file:
+                        logo_data = logo_file.read()
+                    logo_attachment = MIMEImage(logo_data)
+                    logo_attachment.add_header('Content-ID', '<cbs_logo>')
+                    logo_attachment.add_header('Content-Disposition', 'inline', filename='cbs_logo.png')
+                    msg.attach(logo_attachment)
+                    logger.info(f"CBS logo attached from alternative path ({len(logo_data)} bytes)")
+                else:
+                    logger.error(f"CBS logo not found at either {logo_path} or {alt_logo_path}")
+        except Exception as e:
+            logger.error(f"Failed to attach CBS logo: {e}")
+        
+        # Add PDF attachment
+        pdf_attachment = MIMEApplication(pdf_data, _subtype="pdf")
+        quotation_no = quotation_data.get('meta', {}).get('quotationNo', 'quotation')
+        pdf_attachment.add_header('Content-Disposition', 'attachment', filename=f"Quotation_{quotation_no}.pdf")
+        msg.attach(pdf_attachment)
+        
+        # Send email
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(email_username, email_password)
+            server.send_message(msg)
+        
+        logger.info(f"Quotation email with PDF sent successfully to {customer_email}")
+        
+        return {
+            "success": True,
+            "message": "Email sent successfully",
+            "acceptance_link": acceptance_link,
+            "customer_email": customer_email,
+            "quotation_no": quotation_data.get('meta', {}).get('quotationNo', '')
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to send quotation email: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.post("/api/email/send-quotation")
+async def send_quotation_email_endpoint(request: QuotationEmailRequest):
+    """
+    Send quotation email with PDF attachment and acceptance link
+    
+    Args:
+        request: QuotationEmailRequest containing quotation data and customer email
+        
+    Returns:
+        JSON response with success status and details
+    """
+    try:
+        logger.info(f"Sending quotation email to {request.customer_email}")
+        
+        # Validate quotation data
+        if not request.quotation_data:
+            raise HTTPException(status_code=400, detail="Quotation data is required")
+        
+        if not request.quotation_data.get('meta', {}).get('quotationNo'):
+            raise HTTPException(status_code=400, detail="Quotation number is required")
+        
+        if not request.quotation_data.get('customer', {}).get('name'):
+            raise HTTPException(status_code=400, detail="Customer name is required")
+        
+        # Send email
+        result = send_quotation_email(request.quotation_data, request.customer_email)
+        
+        if result["success"]:
+            logger.info(f"Email sent successfully to {request.customer_email}")
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "message": "Quotation email sent successfully",
+                    "quotation_no": result["quotation_no"],
+                    "customer_email": result["customer_email"],
+                    "acceptance_link": result["acceptance_link"]
+                }
+            )
+        else:
+            logger.error(f"Failed to send email: {result.get('error', 'Unknown error')}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to send email: {result.get('error', 'Unknown error')}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error sending quotation email: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.get("/api/email/health")
+async def email_health_check():
+    """
+    Health check endpoint for email service
+    
+    Returns:
+        JSON response with service status
+    """
+    try:
+        # Check if email credentials are configured
+        has_credentials = bool(os.getenv('EMAIL_USERNAME') and os.getenv('EMAIL_PASSWORD'))
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "service": "email",
+                "status": "healthy" if has_credentials else "misconfigured",
+                "smtp_host": os.getenv('EMAIL_SMTP_HOST', 'smtp.gmail.com'),
+                "smtp_port": int(os.getenv('EMAIL_SMTP_PORT', '587')),
+                "has_credentials": has_credentials,
+                "company_name": os.getenv('COMPANY_NAME', 'Concrete Batching Systems')
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Email health check failed: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "service": "email",
+                "status": "unhealthy",
+                "error": str(e)
+            }
+        )

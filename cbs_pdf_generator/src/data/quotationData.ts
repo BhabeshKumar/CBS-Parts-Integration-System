@@ -114,5 +114,5 @@ export const quotationData: QuotationData = {
   acceptanceNote: "Customer Acceptance (sign below)",
   footerNote:
     "If you have any question about this Sales Quotation, please contact:",
-  email: "hello@gmail.com"
+  email: "sales@concretebatchingsystems.com"
 };

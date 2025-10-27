@@ -465,8 +465,8 @@
                                 <th>Product Code</th>
                                 <th>Description</th>
                                 <th>Qty</th>
-                                <th>Unit Price (€)</th>
-                                <th>Line Total (€)</th>
+                                <th>Unit Price (£)</th>
+                                <th>Line Total (£)</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -485,7 +485,7 @@
                             </label>
                             <label>
                                 <input type="radio" name="discountType" value="fixed"> 
-                                Fixed Amount: €<input type="number" id="discountFixed" class="discount-input" value="0" min="0" step="0.01">
+                                Fixed Amount: £<input type="number" id="discountFixed" class="discount-input" value="0" min="0" step="0.01">
                             </label>
                         </div>
                     </div>
@@ -494,19 +494,19 @@
                     <div class="totals-section">
                         <div class="total-line">
                             <span>Subtotal:</span>
-                            <span id="subtotal">€0.00</span>
+                            <span id="subtotal">£0.00</span>
                         </div>
                         <div class="total-line">
                             <span>Discount:</span>
-                            <span id="discountAmount">-€0.00</span>
+                            <span id="discountAmount">-£0.00</span>
                         </div>
                         <div class="total-line">
-                            <span>VAT (23%):</span>
-                            <span id="vatAmount">€0.00</span>
+                            <span>VAT (20%):</span>
+                            <span id="vatAmount">£0.00</span>
                         </div>
                         <div class="total-line grand-total">
                             <span>Grand Total:</span>
-                            <span id="grandTotal">€0.00</span>
+                            <span id="grandTotal">£0.00</span>
                         </div>
                     </div>
                 </div>
@@ -519,9 +519,8 @@
 
                 <!-- Actions -->
                 <div class="actions">
-                    <button class="btn btn-primary" onclick="updatePricing()">🔄 Update Pricing</button>
+                    <button class="btn btn-primary" onclick="refreshDatabase()">🔄 Refresh Database</button>
                     <button class="btn btn-primary" onclick="openQuotationGenerator()">📝 Open Quotation Generator</button>
-                    <button class="btn btn-success" onclick="approveAndGenerate()">✅ Approve & Generate Quote</button>
                 </div>
             </div>
         </div>
@@ -655,7 +654,7 @@
                                min="0" step="0.01" data-index="${index}" placeholder="Enter price..."
                                onchange="updatePrice(${index}, this.value)">
                     </td>
-                    <td class="line-total" id="lineTotal${index}">€${(part.quantity * part.sales_price).toFixed(2)}</td>
+                    <td class="line-total" id="lineTotal${index}">£${(part.quantity * part.sales_price).toFixed(2)}</td>
                     <td>
                         <button class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.8em;" 
                                 onclick="removePart(${index})">Remove</button>
@@ -671,7 +670,7 @@
                 orderData.selectedParts[index].quantity * orderData.selectedParts[index].sales_price;
             
             document.getElementById(`lineTotal${index}`).textContent = 
-                `€${orderData.selectedParts[index].line_total.toFixed(2)}`;
+                `£${orderData.selectedParts[index].line_total.toFixed(2)}`;
             
             calculateTotals();
         }
@@ -682,7 +681,7 @@
                 orderData.selectedParts[index].quantity * orderData.selectedParts[index].sales_price;
             
             document.getElementById(`lineTotal${index}`).textContent = 
-                `€${orderData.selectedParts[index].line_total.toFixed(2)}`;
+                `£${orderData.selectedParts[index].line_total.toFixed(2)}`;
             
             calculateTotals();
         }
@@ -710,14 +709,14 @@
             }
             
             const discountedTotal = subtotal - discountAmount;
-            const vatAmount = discountedTotal * 0.23; // 23% VAT
+            const vatAmount = discountedTotal * 0.20; // 20% VAT
             const grandTotal = discountedTotal + vatAmount;
 
             // Update display
-            document.getElementById('subtotal').textContent = `€${subtotal.toFixed(2)}`;
-            document.getElementById('discountAmount').textContent = `-€${discountAmount.toFixed(2)}`;
-            document.getElementById('vatAmount').textContent = `€${vatAmount.toFixed(2)}`;
-            document.getElementById('grandTotal').textContent = `€${grandTotal.toFixed(2)}`;
+            document.getElementById('subtotal').textContent = `£${subtotal.toFixed(2)}`;
+            document.getElementById('discountAmount').textContent = `-£${discountAmount.toFixed(2)}`;
+            document.getElementById('vatAmount').textContent = `£${vatAmount.toFixed(2)}`;
+            document.getElementById('grandTotal').textContent = `£${grandTotal.toFixed(2)}`;
         }
 
         function setupEventListeners() {
@@ -729,6 +728,32 @@
             });
         }
 
+
+        async function refreshDatabase() {
+            if (confirm('This will refresh the parts database from Smartsheet. This may take 1-2 minutes. Continue?')) {
+                try {
+                    showSuccess('🔄 Refreshing database from Smartsheet...');
+                    
+                    // Call the database refresh endpoint
+                    const response = await fetch(`${window.CBS_CONFIG.api.partsSearch.replace('/search', '/sync')}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed to refresh database: ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    showSuccess('✅ Database refreshed successfully! Parts data is now up to date.');
+                    
+                } catch (error) {
+                    showError('Failed to refresh database: ' + error.message);
+                }
+            }
+        }
 
         async function updatePricing() {
             try {
@@ -890,7 +915,7 @@ Cancel = Download quotation data as JSON file`);
                                 quantity: part.quantity,
                                 unitPrice: part.sales_price || 0  // Use the current price set by CBS
                             })),
-                            taxRate: 23,
+                            taxRate: 20,
                             carriage: -discountAmount  // Use negative carriage for discount
                         };
                         
@@ -902,10 +927,10 @@ Cancel = Download quotation data as JSON file`);
                         console.log('📊 CBS formatted data:', cbsData);
                         console.log('💰 Prices being sent:');
                         cbsData.items.forEach(item => {
-                            console.log(`  - ${item.code}: €${item.unitPrice} x ${item.quantity} = €${(item.unitPrice * item.quantity).toFixed(2)}`);
+                            console.log(`  - ${item.code}: £${item.unitPrice} x ${item.quantity} = £${(item.unitPrice * item.quantity).toFixed(2)}`);
                         });
-                        console.log(`💸 Discount: €${discountAmount.toFixed(2)} (${discountType})`);
-                        console.log(`🏷️ Carriage (discount): €${cbsData.carriage.toFixed(2)}`);
+                        console.log(`💸 Discount: £${discountAmount.toFixed(2)} (${discountType})`);
+                        console.log(`🏷️ Carriage (discount): £${cbsData.carriage.toFixed(2)}`);
                         console.log('🔗 Encoded data length:', encodedData.length);
                         
                         // Show the user the actual URL being generated
@@ -960,6 +985,33 @@ Cancel = Download quotation data as JSON file`);
             document.getElementById('error').textContent = message;
         }
 
+        function showSuccess(message) {
+            // Create a temporary success message element
+            const successDiv = document.createElement('div');
+            successDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #28a745;
+                color: white;
+                padding: 15px 20px;
+                border-radius: 5px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                z-index: 10000;
+                font-weight: 500;
+                max-width: 400px;
+            `;
+            successDiv.textContent = message;
+            document.body.appendChild(successDiv);
+            
+            // Remove after 5 seconds
+            setTimeout(() => {
+                if (successDiv.parentNode) {
+                    successDiv.parentNode.removeChild(successDiv);
+                }
+            }, 5000);
+        }
+
         // Parts Search Functionality
         async function searchParts() {
             const query = document.getElementById('partsSearchInput').value.trim();
@@ -1004,7 +1056,7 @@ Cancel = Download quotation data as JSON file`);
                             <div style="color: #666; margin-top: 4px;">${part.description}</div>
                         </div>
                         <div style="color: #27ae60; font-weight: 600;">
-                            €${(part.sales_price || 0).toFixed(2)}
+                            £${(part.sales_price || 0).toFixed(2)}
                         </div>
                     </div>
                 </div>
