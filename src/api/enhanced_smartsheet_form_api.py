@@ -84,6 +84,11 @@ class QuotationEmailRequest(BaseModel):
     quotation_data: Dict[str, Any]
     customer_email: EmailStr
 
+class CustomIntakeRequest(BaseModel):
+    """Request model for custom order intake with images"""
+    customer_info: Dict[str, Any]
+    parts: List[Dict[str, Any]]
+
 # Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -334,30 +339,63 @@ async def get_order_details(quote_id: str):
             service = SmartsheetService()
             sheet = service.client.Sheets.get_sheet(ORDERS_INTAKE_SHEET_ID)
             
+            # Find all rows with this Quote ID (header) or its suffix versions (part rows)
+            matching_rows = []
             for row in sheet.rows:
-                for cell in row.cells:
-                    if (hasattr(cell, 'column_id') and 
-                        hasattr(cell, 'value') and 
-                        cell.value == quote_id):
-                        return service.get_row_data(sheet, row)
-            return None
+                row_data = service.get_row_data(sheet, row)
+                quote_id_value = row_data.get('Quote ID', '') or ''
+                # Match exact quote_id or quote_id with suffix (e.g., Q-25001 matches Q-25001 and Q-25001-1)
+                if quote_id_value and (quote_id_value == quote_id or quote_id_value.startswith(f"{quote_id}-")):
+                    matching_rows.append(row_data)
+            
+            if not matching_rows:
+                return None
+            
+            logger.info(f"Found {len(matching_rows)} rows for Quote ID {quote_id}")
+            
+            # Find the header row (has Delivery Address) vs part rows (have Part Description)
+            header_row = None
+            part_rows = []
+            
+            for row_data in matching_rows:
+                if row_data.get('Delivery Address'):  # Header row has delivery address
+                    header_row = row_data
+                elif row_data.get('Part Description'):  # Part row has part description
+                    part_rows.append(row_data)
+            
+            # If no header row found, use first row as header
+            if not header_row and matching_rows:
+                header_row = matching_rows[0]
+            
+            # Build selectedParts from part rows
+            selected_parts = []
+            for part_row in part_rows:
+                part_info = {
+                    'partNumber': part_row.get('Part No.', ''),
+                    'partName': part_row.get('Part Description', ''),
+                    'quantity': part_row.get('Quantity Required', ''),
+                    'notes': part_row.get('Additional Notes', '')
+                }
+                selected_parts.append(part_info)
+            
+            return header_row, selected_parts
         
-        order_data = await asyncio.get_event_loop().run_in_executor(
+        order_result = await asyncio.get_event_loop().run_in_executor(
             None, 
             lambda: smartsheet_circuit_breaker.call(get_from_smartsheet)
         )
         
-        if not order_data:
+        if not order_result:
             raise HTTPException(status_code=404, detail="Order not found")
         
-        # Parse parts data safely
-        selected_parts = []
-        if order_data.get('Parts Data'):
+        order_data, selected_parts = order_result
+        
+        # Also check for old format with JSON data
+        if not selected_parts and order_data.get('Parts Data'):
             try:
                 selected_parts = json.loads(order_data['Parts Data'])
             except json.JSONDecodeError:
                 logger.warning(f"Invalid JSON in Parts Data for {quote_id}")
-                selected_parts = []
         
         result = {
             "quote_id": quote_id,
@@ -730,19 +768,19 @@ def create_email_template(quotation_data: Dict[str, Any], acceptance_link: str) 
                 </div>
                 <div class="item-row">
                     <span>Subtotal:</span>
-                    <span>€{subtotal:,.2f}</span>
+                    <span>£{subtotal:,.2f}</span>
                 </div>
                 <div class="item-row">
                     <span>Tax ({tax_rate}%):</span>
-                    <span>€{tax_amount:,.2f}</span>
+                    <span>£{tax_amount:,.2f}</span>
                 </div>
                 <div class="item-row">
                     <span>Carriage:</span>
-                    <span>€{carriage:,.2f}</span>
+                    <span>£{carriage:,.2f}</span>
                 </div>
                 <div class="total-row">
                     <span>Total:</span>
-                    <span>€{grand_total:,.2f}</span>
+                    <span>£{grand_total:,.2f}</span>
                 </div>
             </div>
             
@@ -1001,4 +1039,254 @@ async def email_health_check():
                 "status": "unhealthy",
                 "error": str(e)
             }
+        )
+
+@app.post("/api/order/custom-intake")
+@retry_on_failure(max_retries=3, delay=1.0)
+async def custom_order_intake(request: Request):
+    """
+    Handle custom order intake with multiple parts and images.
+    Creates one header row per order and multiple part rows with attached images.
+    """
+    try:
+        # Get raw request body for debugging
+        body = await request.body()
+        logger.info(f"Received request body: {body[:500]}...")  # Log first 500 chars
+        
+        # Parse JSON manually for better error handling
+        try:
+            request_data = await request.json()
+            logger.info(f"Parsed request: customer_info keys={list(request_data.get('customer_info', {}).keys())}, parts count={len(request_data.get('parts', []))}")
+        except Exception as e:
+            logger.error(f"Failed to parse JSON: {e}")
+            raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
+        
+        # Validate request structure - support both camelCase and snake_case
+        if 'customer_info' in request_data:
+            customer_info = request_data['customer_info']
+        elif 'customerInfo' in request_data:
+            customer_info = request_data['customerInfo']
+        else:
+            logger.error(f"Missing 'customer_info' or 'customerInfo'. Received keys: {request_data.keys()}")
+            raise HTTPException(status_code=422, detail="Missing 'customer_info' or 'customerInfo' field")
+        
+        if 'parts' not in request_data:
+            logger.error(f"Missing 'parts'. Received keys: {request_data.keys()}")
+            raise HTTPException(status_code=422, detail="Missing 'parts' field")
+        
+        parts = request_data['parts']
+        
+        from src.services.smartsheet_service import SmartsheetService
+        from config.my_config import ORDERS_INTAKE_SHEET_ID
+        import base64
+        import tempfile
+        import os as os_module
+        
+        service = SmartsheetService()
+        
+        logger.info(f"Processing custom intake order for {customer_info.get('customerName')}")
+        
+        # Step 1: Generate the next sequential Quote ID (Q-25001, Q-25002, etc.)
+        def get_next_quote_id():
+            """Get the next sequential Quote ID by finding the highest existing one"""
+            try:
+                sheet = service.client.Sheets.get_sheet(ORDERS_INTAKE_SHEET_ID)
+                quote_ids = []
+                
+                # Extract all Quote IDs from the sheet
+                for row in sheet.rows:
+                    row_data = service.get_row_data(sheet, row)
+                    quote_id_str = row_data.get('Quote ID', '')
+                    if quote_id_str and quote_id_str.startswith('Q-'):
+                        # Extract numeric part (e.g., "Q-25050" -> 25050)
+                        try:
+                            numeric_part = int(quote_id_str.split('-')[1])
+                            quote_ids.append(numeric_part)
+                        except (IndexError, ValueError):
+                            pass
+                
+                # Find the highest existing Quote ID
+                if quote_ids:
+                    max_id = max(quote_ids)
+                    next_id = max_id + 1
+                else:
+                    # Start from 25001 if no prior Quote IDs exist
+                    next_id = 25001
+                
+                return f"Q-{next_id}"
+                
+            except Exception as e:
+                logger.warning(f"Error finding last Quote ID: {e}, starting from 25001")
+                return "Q-25001"
+        
+        quote_id = get_next_quote_id()
+        logger.info(f"Generated Quote ID: {quote_id}")
+        
+        # Step 2: Create header row with customer info INCLUDING the Quote ID
+        # Since Quote ID is now TEXT_NUMBER (not auto-numbered), we set it manually
+        header_row_data = {
+            "Quote ID": quote_id,
+            "Buyer's Name": customer_info.get("customerName"),
+            "Buyer's Email Address": customer_info.get("customerEmail"),
+            "Buyer's Mobile No.": customer_info.get("customerPhone"),
+            "Delivery Address": customer_info.get("deliveryAddress"),
+            "Order Date": customer_info.get("orderDate"),
+            "Required-By Date": customer_info.get("requiredDate"),
+            "Additional Notes": customer_info.get("additionalNotes", "")
+        }
+        
+        logger.info("Creating header row...")
+        logger.info(f"Header row data keys: {list(header_row_data.keys())}")
+        logger.info(f"Header row data: {header_row_data}")
+        
+        # Debug: Check what columns exist in the sheet
+        try:
+            sheet = service.client.Sheets.get_sheet(ORDERS_INTAKE_SHEET_ID)
+            logger.info(f"Sheet columns: {[col.title for col in sheet.columns]}")
+        except Exception as e:
+            logger.error(f"Could not fetch sheet columns: {e}")
+        
+        header_row = service.add_row(str(ORDERS_INTAKE_SHEET_ID), header_row_data)
+        
+        if not header_row or not hasattr(header_row, 'id'):
+            raise HTTPException(status_code=500, detail="Failed to create order header")
+        
+        logger.info(f"Order created with Quote ID: {quote_id}")
+        
+        # Step 2.5: Add quotation link to the header row
+        try:
+            from smartsheet.models import Cell, Row
+            
+            domain = os.getenv('CBS_DOMAIN', 'localhost')
+            protocol = 'http'
+            quotation_link = f"{protocol}://{domain}/parts_review_interface.html?quote_id={quote_id}"
+            
+            # Find the Quotation Link column
+            quotation_link_column = None
+            for col in sheet.columns:
+                if col.title == "Quotation Link":
+                    quotation_link_column = col
+                    break
+            
+            if quotation_link_column:
+                # Create update row with the quotation link
+                update_row = Row()
+                update_row.id = header_row.id
+                update_row.cells.append(Cell({
+                    'column_id': quotation_link_column.id,
+                    'value': quotation_link
+                }))
+                
+                # Update the row in Smartsheet
+                service.client.Sheets.update_rows(ORDERS_INTAKE_SHEET_ID, [update_row])
+                logger.info(f"Updated quotation link for Quote ID: {quote_id}")
+            else:
+                logger.warning("Quotation Link column not found in sheet")
+                
+        except Exception as e:
+            logger.warning(f"Could not update quotation link: {e}")
+        
+        # Step 3: Create part rows with same Quote ID and attach images
+        for idx, part in enumerate(parts, 1):
+            try:
+                # Create part row data - use Smartsheet actual column names
+                # For now, include image data as a text field since attachment API requires numeric sheet ID
+                image_ref = "Image uploaded" if part.get("image") else ""
+                
+                # Use Quote ID with suffix for part rows (Q-XXXX-1, Q-XXXX-2, etc.)
+                part_row_data = {
+                    "Quote ID": f"{quote_id}-{idx}",
+                    "Buyer's Name": customer_info.get("customerName"),
+                    "Part Description": part.get("partName"),
+                    "Quantity Required": part.get("quantity", 1)
+                }
+                
+                # If there's a notes field, add it
+                if part.get("partNotes"):
+                    part_row_data["Additional Notes"] = part.get("partNotes")
+                
+                # Add part row (without image first)
+                part_row = service.add_row(str(ORDERS_INTAKE_SHEET_ID), part_row_data)
+                
+                if not part_row or not hasattr(part_row, 'id'):
+                    logger.error(f"Failed to create part row for Part #{idx}")
+                    continue
+                
+                # Attach image using Smartsheet API with numeric sheet ID
+                if part.get("image"):
+                    try:
+                        # Use numeric sheet ID: 3903265310723972
+                        # Image column ID: 4839354393120644
+                        logger.info(f"Attaching image to Part #{idx}...")
+                        
+                        # Decode base64 image
+                        image_data = base64.b64decode(part.get("image").split(",")[1])
+                        image_filename = part.get("imageFilename", f"part_image_{idx}.jpg")
+                        
+                        # Save to temporary file
+                        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+                            temp_file.write(image_data)
+                            temp_file_path = temp_file.name
+                        
+                        # Use Smartsheet REST API directly to attach image
+                        from config.my_config import SMARTSHEET_API_TOKEN
+                        import requests
+                        
+                        # Numeric sheet ID and image column ID
+                        sheet_id_num = "3903265310723972"
+                        image_column_id = "4839354393120644"
+                        
+                        # Upload image using Smartsheet API
+                        image_url = f"https://api.smartsheet.com/2.0/sheets/{sheet_id_num}/rows/{part_row.id}/columns/{image_column_id}/cellimages?altText={image_filename}"
+                        headers = {
+                            "Authorization": f"Bearer {SMARTSHEET_API_TOKEN}",
+                            "Content-Type": "image/jpeg",
+                            "Content-Disposition": f'attachment; filename="{image_filename}"'
+                        }
+                        
+                        with open(temp_file_path, 'rb') as img_file:
+                            file_size = os_module.path.getsize(temp_file_path)
+                            headers["Content-Length"] = str(file_size)
+                            response = requests.post(image_url, headers=headers, data=img_file)
+                            if response.status_code in [200, 201]:
+                                logger.info(f"✅ Image successfully attached to Part #{idx}")
+                            else:
+                                logger.warning(f"⚠️ Image attachment failed for Part #{idx}: {response.status_code} - {response.text}")
+                        
+                        # Clean up temp file
+                        if os_module.path.exists(temp_file_path):
+                            os_module.unlink(temp_file_path)
+                            
+                    except Exception as e:
+                        logger.error(f"Error attaching image for Part #{idx}: {e}")
+                
+                # Add notes if provided
+                if part.get("partNotes"):
+                    part_notes = part.get("partNotes")
+                    # Note: We may need to update the row to add notes
+                    # This depends on your Smartsheet structure
+                
+            except Exception as e:
+                logger.error(f"Error processing Part #{idx}: {e}")
+                continue
+        
+        logger.info(f"Custom intake order processed successfully: Quote ID {quote_id}")
+        
+        return {
+            "success": True,
+            "quote_id": quote_id,
+            "header_row_id": header_row.id,
+            "parts_count": len(parts),
+            "message": f"Order submitted successfully with Quote ID: {quote_id}",
+            "timestamp": time.time()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Custom intake order failed: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to process custom intake order: {str(e)}"
         )

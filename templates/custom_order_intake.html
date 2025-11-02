@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CBS Custom Order Intake</title>
+    <link rel="icon" type="image/png" href="/logo/cbs_logo.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .header img {
+            max-width: 150px;
+            height: auto;
+            margin-bottom: 1rem;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .form-container {
+            padding: 2rem;
+        }
+
+        .section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #00b3ff;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #495057;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #00b3ff;
+            box-shadow: 0 0 0 3px rgba(0, 179, 255, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: #00b3ff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0099e6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 179, 255, 0.3);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+            font-size: 1.1rem;
+            padding: 1rem 2rem;
+            width: 100%;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-success:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .part-row {
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .part-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .part-number {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #00b3ff;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .row.full {
+            grid-template-columns: 1fr;
+        }
+
+        .image-upload {
+            border: 2px dashed #00b3ff;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .image-upload:hover {
+            background: #e9ecef;
+            border-color: #0099e6;
+        }
+
+        .image-upload input[type="file"] {
+            display: none;
+        }
+
+        .image-preview {
+            margin-top: 1rem;
+            max-width: 200px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .image-preview-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .remove-image-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .status-message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="/logo/cbs_logo.png" alt="CBS Logo">
+            <h1>Custom Parts Order Request</h1>
+            <p>Complete your order details below </p>
+        </div>
+
+        <div class="form-container">
+            <form id="customOrderForm">
+                <!-- Customer Information Section -->
+                <div class="section">
+                    <div class="section-title">
+                        👤 Customer Information
+                    </div>
+
+                    <div class="form-group">
+                        <label for="customerName">Buyer's Name *</label>
+                        <input type="text" id="customerName" name="customerName" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="form-group">
+                            <label for="customerEmail">Email Address *</label>
+                            <input type="email" id="customerEmail" name="customerEmail" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="customerPhone">Phone Number *</label>
+                            <input type="tel" id="customerPhone" name="customerPhone" required>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="form-group">
+                            <label for="orderDate">Order Date *</label>
+                            <input type="date" id="orderDate" name="orderDate" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="requiredDate">Required Date *</label>
+                            <input type="date" id="requiredDate" name="requiredDate" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="deliveryAddress">Delivery Address *</label>
+                        <textarea id="deliveryAddress" name="deliveryAddress" required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="additionalNotes">Additional Notes</label>
+                        <textarea id="additionalNotes" name="additionalNotes" placeholder="Any special instructions or requirements..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Parts Section -->
+                <div class="section">
+                    <div class="section-title">
+                        🔧 Parts & Images
+                        <button type="button" class="btn btn-primary" onclick="addPartRow()">+ Add Part</button>
+                    </div>
+
+                    <div id="partsContainer">
+                        <!-- Parts will be added here dynamically -->
+                    </div>
+                </div>
+
+                <!-- Status Messages -->
+                <div id="statusMessage" class="status-message"></div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="btn btn-success" id="submitBtn">
+                    <span id="submitBtnText">🚀 Submit Order</span>
+                    <span id="submitLoader" class="loading" style="display: none;"></span>
+                </button>
+            </form>
+            
+            <!-- Powered by Sheaney Footer -->
+            <footer style="margin-top: 40px; padding: 20px 0; border-top: 1px solid #e0e0e0; text-align: center; background-color: #f9f9f9; border-radius: 0 0 20px 20px;">
+                <div style="display: flex; align-items: center; justify-content: center; gap: 12px; font-family: Arial, sans-serif;">
+                    <span style="color: #666; font-size: 14px; font-weight: 500;">Powered by</span>
+                    <img src="logo/Sheaney Logo BLACK 1.png" alt="Sheaney" style="height: 32px; object-fit: contain;">
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        // Detect API base URL
+        const API_BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:8003'
+            : `http://${window.location.hostname}:8003`;
+
+        let partCount = 0;
+
+        // Initialize with one part
+        window.onload = function() {
+            addPartRow();
+        };
+
+        function addPartRow() {
+            partCount++;
+            const partsContainer = document.getElementById('partsContainer');
+            
+            const partRow = document.createElement('div');
+            partRow.className = 'part-row';
+            partRow.id = `part-${partCount}`;
+            
+            partRow.innerHTML = `
+                <div class="part-header">
+                    <span class="part-number">Part #${partCount}</span>
+                    <button type="button" class="btn btn-danger" onclick="removePartRow('part-${partCount}')">Remove</button>
+                </div>
+                
+                <div class="form-group">
+                    <label>Part Name/Description *</label>
+                    <input type="text" name="partName-${partCount}" placeholder="e.g., Custom Bracket, Modified Sprocket" required>
+                </div>
+
+                <div class="row">
+                    <div class="form-group">
+                        <label>Quantity *</label>
+                        <input type="number" name="quantity-${partCount}" min="1" value="1" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Priority</label>
+                        <select name="priority-${partCount}" style="width: 100%; padding: 0.75rem; border: 2px solid #dee2e6; border-radius: 8px; font-size: 1rem;">
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                            <option value="Low">Low</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Part Notes</label>
+                    <textarea name="partNotes-${partCount}" placeholder="Additional details about this part..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Upload Image *</label>
+                    <div class="image-upload" onclick="document.getElementById('file-${partCount}').click()">
+                        <p>📷 Click to upload part image</p>
+                        <small style="color: #6c757d;">JPG, PNG (Max 5MB)</small>
+                    </div>
+                    <input type="file" id="file-${partCount}" name="image-${partCount}" accept="image/*" onchange="handleImageUpload(this, 'preview-${partCount}')" required>
+                    <div id="preview-${partCount}"></div>
+                </div>
+            `;
+            
+            partsContainer.appendChild(partRow);
+        }
+
+        function removePartRow(partId) {
+            const partRow = document.getElementById(partId);
+            if (partRow) {
+                partRow.remove();
+                
+                // Renumber remaining parts
+                const parts = document.querySelectorAll('.part-row');
+                parts.forEach((part, index) => {
+                    const header = part.querySelector('.part-number');
+                    if (header) {
+                        header.textContent = `Part #${index + 1}`;
+                    }
+                });
+            }
+        }
+
+        function handleImageUpload(input, previewId) {
+            const file = input.files[0];
+            const previewContainer = document.getElementById(previewId);
+            
+            if (file) {
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('Image size must be less than 5MB');
+                    input.value = '';
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewContainer.innerHTML = `
+                        <div class="image-preview-container">
+                            <img src="${e.target.result}" alt="Preview" class="image-preview">
+                            <button type="button" class="remove-image-btn" onclick="removeImage('${input.id}', '${previewId}')">Remove Image</button>
+                        </div>
+                    `;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function removeImage(inputId, previewId) {
+            document.getElementById(inputId).value = '';
+            document.getElementById(previewId).innerHTML = '';
+        }
+
+        // Handle form submission
+        document.getElementById('customOrderForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const submitBtnText = document.getElementById('submitBtnText');
+            const submitLoader = document.getElementById('submitLoader');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            // Validate at least one part
+            const partRows = document.querySelectorAll('.part-row');
+            if (partRows.length === 0) {
+                statusMessage.className = 'status-message error';
+                statusMessage.textContent = 'Please add at least one part';
+                return;
+            }
+            
+            // Disable submit button
+            submitBtn.disabled = true;
+            submitBtnText.textContent = 'Submitting...';
+            submitLoader.style.display = 'inline-block';
+            
+            try {
+                // Collect customer info
+                const customerInfo = {
+                    customerName: document.getElementById('customerName').value,
+                    customerEmail: document.getElementById('customerEmail').value,
+                    customerPhone: document.getElementById('customerPhone').value,
+                    deliveryAddress: document.getElementById('deliveryAddress').value,
+                    orderDate: document.getElementById('orderDate').value,
+                    requiredDate: document.getElementById('requiredDate').value,
+                    additionalNotes: document.getElementById('additionalNotes').value
+                };
+                
+                // Collect parts with images
+                const parts = [];
+                for (let i = 0; i < partRows.length; i++) {
+                    const part = partRows[i];
+                    const partName = part.querySelector(`input[name="partName-${i + 1}"]`)?.value;
+                    const quantity = part.querySelector(`input[name="quantity-${i + 1}"]`)?.value;
+                    const priority = part.querySelector(`select[name="priority-${i + 1}"]`)?.value;
+                    const partNotes = part.querySelector(`textarea[name="partNotes-${i + 1}"]`)?.value;
+                    const imageFile = part.querySelector(`input[name="image-${i + 1}"]`)?.files[0];
+                    
+                    if (!partName || !quantity) {
+                        throw new Error('Please fill required fields (Part Name and Quantity) for Part #' + (i + 1));
+                    }
+                    
+                    // Convert image to base64 if provided
+                    let imageBase64 = null;
+                    let imageFilename = null;
+                    let imageContentType = null;
+                    
+                    if (imageFile) {
+                        imageBase64 = await fileToBase64(imageFile);
+                        imageFilename = imageFile.name;
+                        imageContentType = imageFile.type;
+                    }
+                    
+                    parts.push({
+                        partName,
+                        quantity: parseInt(quantity),
+                        priority,
+                        partNotes,
+                        image: imageBase64,
+                        imageFilename: imageFilename,
+                        imageContentType: imageContentType
+                    });
+                }
+                
+                // Submit to API
+                const response = await fetch(`${API_BASE_URL}/api/order/custom-intake`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        customer_info: customerInfo,
+                        parts: parts
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    statusMessage.className = 'status-message success';
+                    statusMessage.textContent = `✅ Order submitted successfully! Quote ID: ${result.quote_id}`;
+                    
+                    // Reset form
+                    document.getElementById('customOrderForm').reset();
+                    document.getElementById('partsContainer').innerHTML = '';
+                    partCount = 0;
+                    addPartRow();
+                    
+                    // Scroll to top
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    throw new Error(result.error || 'Failed to submit order');
+                }
+                
+            } catch (error) {
+                statusMessage.className = 'status-message error';
+                statusMessage.textContent = `❌ Error: ${error.message}`;
+                console.error('Submission error:', error);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtnText.textContent = '🚀 Submit Order';
+                submitLoader.style.display = 'none';
+            }
+        });
+        
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+    </script>
+</body>
+</html>

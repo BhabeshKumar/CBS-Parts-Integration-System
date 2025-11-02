@@ -43,6 +43,9 @@ COPY deployment/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN mkdir -p /app/logs /var/log/supervisor /run/nginx && \
     chmod +x /app/scripts/*.py
 
+# Copy logo to templates directory for web server
+RUN cp -r /app/logo /app/templates/logo
+
 # Skip React build for now - run in dev mode
 # RUN cd cbs_pdf_generator && npm run build
 

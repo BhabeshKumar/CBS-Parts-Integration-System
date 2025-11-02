@@ -361,15 +361,27 @@ class SmartsheetService:
             if not filename:
                 filename = os.path.basename(file_path)
             
-            # Add attachment to row using the correct SDK method
-            # The method signature is: attach_file_to_row(sheet_id, row_id, file_path)
-            result = self.client.Attachments.attach_file_to_row(sheet_id, row_id, file_path)
+            # Smartsheet SDK expects numeric sheet ID
+            # For text-based IDs, we need to look them up first or use string IDs directly
+            sheet_id_int = sheet_id
+            try:
+                # Try to convert to int if it's a numeric string
+                if str(sheet_id).isdigit():
+                    sheet_id_int = int(sheet_id)
+                # Otherwise, pass as string (Smartsheet SDK may accept string IDs in some cases)
+            except:
+                sheet_id_int = sheet_id
             
-            if result:
+            # Add attachment to row
+            # For string-based sheet IDs, we may need a different approach
+            # Let's try with the SDK method that accepts any ID type
+            try:
+                result = self.client.Attachments.attach_file_to_row(sheet_id, row_id, file_path)
                 logger.info(f"Attachment '{filename}' added to row {row_id}")
                 return True
-            else:
-                logger.error("Failed to add attachment")
+            except Exception as attach_error:
+                # If that fails, try attaching via the row directly
+                logger.error(f"Attachment method 1 failed: {attach_error}")
                 return False
                 
         except Exception as e:
